@@ -1,0 +1,207 @@
+{
+  "id": "strava",
+  "name": "Strava",
+  "version": "1.0.0",
+  "description": "Show your Strava life on the wall: recent activities, weekly and yearly stat tiles, goal rings, a 52-week training heatmap, your latest route, and an athlete card. Note: Strava requires an active Strava subscription to create the free API app this plugin connects through.",
+  "author": "home-screens",
+  "license": "MIT",
+  "minAppVersion": "1.7.0",
+  "moduleType": "strava",
+  "category": "Travel",
+  "icon": "Activity",
+  "defaultConfig": {
+    "view": "dashboard",
+    "activityFilter": "all",
+    "recentLimit": 5,
+    "goals": [],
+    "units": "auto",
+    "heatmapMetric": "count",
+    "volumeMetric": "distance",
+    "showMap": true,
+    "showHeader": true
+  },
+  "defaultSize": { "w": 600, "h": 400 },
+  "defaultStyle": {
+    "fontSize": 14,
+    "padding": 16,
+    "backgroundColor": "rgba(0, 0, 0, 0.4)",
+    "borderRadius": 16,
+    "backdropBlur": 6
+  },
+  "permissions": ["network", "secrets", "oauth"],
+  "allowedDomains": ["www.strava.com", "www.api-v3.strava.com"],
+  "secrets": [
+    {
+      "key": "client_id",
+      "label": "Client ID",
+      "description": "From your Strava API application at strava.com/settings/api.",
+      "required": true,
+      "placeholder": "12345"
+    },
+    {
+      "key": "client_secret",
+      "label": "Client Secret",
+      "description": "From the same Strava API application page.",
+      "required": true,
+      "placeholder": "0123456789abcdef..."
+    }
+  ],
+  "auth": {
+    "type": "oauth2",
+    "flow": "authorization_code",
+    "authorizationUrl": "https://www.strava.com/oauth/authorize",
+    "tokenUrl": "https://www.strava.com/oauth/token",
+    "scopes": ["read", "activity:read_all", "profile:read_all"],
+    "scopeSeparator": ",",
+    "pkce": false,
+    "clientAuthentication": "body",
+    "tokenPlacement": "header",
+    "tokenTargetDomains": ["www.strava.com", "www.api-v3.strava.com"],
+    "extraAuthParams": { "approval_prompt": "auto" },
+    "secrets": { "clientId": "client_id", "clientSecret": "client_secret" }
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "view": {
+        "type": "string",
+        "title": "View",
+        "enum": [
+          "dashboard",
+          "stats-tiles",
+          "recent-activities",
+          "route-gallery",
+          "training-volume",
+          "goal-progress",
+          "heatmap",
+          "month-calendar",
+          "year-poster",
+          "records",
+          "latest-hero",
+          "athlete-card"
+        ],
+        "enumLabels": [
+          "Dashboard",
+          "Stats tiles",
+          "Recent activities",
+          "Route gallery",
+          "Training volume",
+          "Goal progress",
+          "Heatmap",
+          "Month calendar",
+          "Year so far",
+          "Records",
+          "Latest activity",
+          "Athlete card"
+        ],
+        "ui:widget": "select",
+        "ui:group": "View"
+      },
+      "showHeader": {
+        "type": "boolean",
+        "title": "Show header",
+        "ui:widget": "toggle",
+        "ui:group": "View"
+      },
+      "units": {
+        "type": "string",
+        "title": "Units",
+        "enum": ["auto", "metric", "imperial"],
+        "enumLabels": ["Match display settings", "Kilometers", "Miles"],
+        "ui:widget": "select",
+        "ui:group": "View"
+      },
+      "activityFilter": {
+        "type": "string",
+        "title": "Activity type",
+        "description": "Which activities to include. \"Runs\" also includes trail and virtual runs, and so on.",
+        "enum": ["all", "Run", "Ride", "Swim", "Walk", "Hike", "Ski", "Row"],
+        "enumLabels": ["All activities", "Runs", "Rides", "Swims", "Walks", "Hikes", "Skiing", "Rowing"],
+        "ui:widget": "select",
+        "ui:group": "Activities"
+      },
+      "recentLimit": {
+        "type": "number",
+        "title": "Activities shown",
+        "minimum": 1,
+        "maximum": 10,
+        "ui:step": 1,
+        "ui:widget": "slider",
+        "ui:group": "Activities",
+        "ui:showWhen": { "field": "view", "equals": "recent-activities" }
+      },
+      "goals": {
+        "type": "array",
+        "title": "Goals",
+        "description": "Each goal tracks distance, time, or climbing for the current week or year. Used by the Goal progress view; the first goal also powers the Dashboard ring.",
+        "ui:group": "Goals",
+        "items": {
+          "type": "object",
+          "properties": {
+            "metric": {
+              "type": "string",
+              "title": "Measure",
+              "enum": ["distance", "movingTime", "elevation"],
+              "enumLabels": ["Distance", "Time", "Climbing"],
+              "ui:widget": "select",
+              "default": "distance"
+            },
+            "period": {
+              "type": "string",
+              "title": "Period",
+              "enum": ["week", "year"],
+              "enumLabels": ["This week", "This year"],
+              "ui:widget": "select",
+              "default": "week"
+            },
+            "target": {
+              "type": "number",
+              "title": "Target",
+              "description": "Distance in km or miles, time in hours, climbing in meters or feet.",
+              "minimum": 1,
+              "default": 100,
+              "ui:widget": "number"
+            }
+          }
+        }
+      },
+      "volumeMetric": {
+        "type": "string",
+        "title": "Measure weeks by",
+        "enum": ["distance", "movingTime"],
+        "enumLabels": ["Distance", "Time"],
+        "ui:widget": "select",
+        "ui:group": "Training volume",
+        "ui:showWhen": { "field": "view", "equals": "training-volume" }
+      },
+      "heatmapMetric": {
+        "type": "string",
+        "title": "Color squares by",
+        "enum": ["count", "distance", "movingTime"],
+        "enumLabels": ["Number of activities", "Distance", "Time"],
+        "ui:widget": "select",
+        "ui:group": "Heatmap",
+        "ui:showWhen": { "field": "view", "equals": "heatmap" }
+      },
+      "showMap": {
+        "type": "boolean",
+        "title": "Show route map",
+        "ui:widget": "toggle",
+        "ui:group": "Latest activity",
+        "ui:showWhen": { "field": "view", "equals": "latest-hero" }
+      }
+    }
+  },
+  "exports": { "component": "default" },
+  "dataRequirements": [],
+  "prefetchUrl": null,
+  "translations": {
+    "en-US": "translations/en-US.json",
+    "de-DE": "translations/de-DE.json",
+    "fr-FR": "translations/fr-FR.json",
+    "es-ES": "translations/es-ES.json",
+    "nl-NL": "translations/nl-NL.json",
+    "pt-BR": "translations/pt-BR.json",
+    "da-DK": "translations/da-DK.json"
+  }
+}
