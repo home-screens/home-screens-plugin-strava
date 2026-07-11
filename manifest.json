@@ -7,7 +7,7 @@
   "license": "MIT",
   "minAppVersion": "1.7.0",
   "moduleType": "strava",
-  "category": "Travel",
+  "category": "Health & Fitness",
   "icon": "Activity",
   "defaultConfig": {
     "view": "dashboard",
