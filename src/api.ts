@@ -81,10 +81,13 @@ export function mapActivity(raw: Record<string, unknown>): ActivityRow {
 
 /**
  * All activities from the last ~year: pages of 200 until a short page, with
- * a 3-page safety cap (600 activities).
+ * a 3-page safety cap (600 activities). `after` is quantized to the hour so
+ * the URL stays stable across remounts — the proxy cache is per-URL, and a
+ * second-precision timestamp would miss it on every request.
  */
 export async function fetchActivities(now = new Date()): Promise<ActivityRow[]> {
-  const after = Math.floor((now.getTime() - ACTIVITY_WINDOW_DAYS * 86_400_000) / 1000);
+  const exactAfter = Math.floor((now.getTime() - ACTIVITY_WINDOW_DAYS * 86_400_000) / 1000);
+  const after = exactAfter - (exactAfter % 3600);
   const rows: ActivityRow[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const batch = await stravaGet<unknown[]>(

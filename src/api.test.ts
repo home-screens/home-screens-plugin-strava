@@ -104,6 +104,17 @@ describe('fetchActivities paging', () => {
     expect(rows).toHaveLength(600);
   });
 
+  it('builds an identical URL for calls within the same hour so the proxy cache hits', async () => {
+    const calls: string[] = [];
+    stubSdk(async (_id, opts) => {
+      calls.push(opts.url);
+      return jsonResponse([rawActivity()]);
+    });
+    await fetchActivities(new Date('2025-06-05T12:00:07Z'));
+    await fetchActivities(new Date('2025-06-05T12:41:52Z'));
+    expect(calls[0]).toBe(calls[1]);
+  });
+
   it('throws a status-carrying error on failure', async () => {
     stubSdk(async () => ({ ok: false, status: 401, json: async () => ({}) }) as unknown as Response);
     await expect(fetchActivities(new Date())).rejects.toMatchObject({ status: 401 });
