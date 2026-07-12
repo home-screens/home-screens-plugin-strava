@@ -2,7 +2,7 @@
   "id": "strava",
   "name": "Strava",
   "version": "1.0.0",
-  "description": "Show your Strava life on the wall: recent activities, weekly and yearly stat tiles, goal rings, a 52-week training heatmap, your latest route, and an athlete card. Note: Strava requires an active Strava subscription to create the free API app this plugin connects through.",
+  "description": "Show your Strava life on the wall: recent activities, weekly and yearly stat tiles, goal rings, a 52-week training heatmap, your latest route, and an athlete card. Strava Subscription Required: Strava only lets subscribers create the free API app this plugin connects through, so you need an active Strava subscription to set it up.",
   "author": "home-screens",
   "license": "MIT",
   "minAppVersion": "1.7.0",
