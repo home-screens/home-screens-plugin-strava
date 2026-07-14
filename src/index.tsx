@@ -11,15 +11,29 @@
 import React from 'react';
 import type { ModuleStyle, PluginComponentProps } from './hs-plugin';
 import type {
+  ActivityDetail,
   ActivityRow,
   AthleteProfile,
   AthleteStats,
+  PhotoItem,
+  PlannedRoute,
+  StarredSegment,
   StravaConfig,
   StravaGoal,
   StravaView,
   Units,
 } from './types';
-import { fetchActivities, fetchAthlete, fetchAthleteStats, isAuthError, PLUGIN_ID } from './api';
+import {
+  fetchActivities,
+  fetchActivityDetail,
+  fetchAthlete,
+  fetchAthleteStats,
+  fetchRoutes,
+  fetchStarredSegments,
+  isAuthError,
+  LONG_WINDOW_DAYS,
+  PLUGIN_ID,
+} from './api';
 import { filterActivities, sortNewestFirst } from './aggregate';
 import { relativeTime } from './format';
 import { currentLocale, t } from './i18n';
@@ -37,29 +51,50 @@ import {
   type ViewProps,
 } from './views';
 import { DashboardView } from './views-dashboard';
-import { RouteGalleryView } from './views-gallery';
 import {
+  PhotoWallView,
+  PlannedRoutesView,
+  RouteGalleryView,
+  RouteMapView,
+} from './views-gallery';
+import {
+  EddingtonView,
   MonthCalendarView,
   RecordsView,
+  TrainingTimesView,
   TrainingVolumeView,
   volumeUnit,
   YearPosterView,
 } from './views-insights';
+import { GearView, MilestonesView, SegmentPrsView } from './views-athlete';
+import { FitnessView, YearCompareView } from './views-trends';
 
 const REFRESH_MS = 600_000;
 const AUTH_RECHECK_MS = 60_000;
+/** Detail requests per photo-wall refresh; keeps the rate-limit cost bounded. */
+const PHOTO_WALL_MAX = 12;
 
 const VALID_VIEWS = new Set<string>([
   'dashboard',
   'stats-tiles',
   'recent-activities',
   'route-gallery',
+  'route-map',
   'training-volume',
   'goal-progress',
   'heatmap',
   'month-calendar',
   'year-poster',
+  'year-compare',
+  'fitness',
   'records',
+  'eddington',
+  'training-times',
+  'segment-prs',
+  'gear',
+  'planned-routes',
+  'photos',
+  'milestones',
   'latest-hero',
   'athlete-card',
 ]);
@@ -95,6 +130,7 @@ function normalizeConfig(raw: Record<string, unknown>): StravaConfig {
   return {
     view,
     activityFilter: typeof raw.activityFilter === 'string' ? raw.activityFilter : 'all',
+    excludeCommutes: raw.excludeCommutes === true,
     recentLimit,
     goals: normalizeGoals(raw.goals),
     units,
@@ -208,6 +244,10 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
   const [rows, setRows] = React.useState<ActivityRow[] | null>(null);
   const [athlete, setAthlete] = React.useState<AthleteProfile | null>(null);
   const [athleteStats, setAthleteStats] = React.useState<AthleteStats | null>(null);
+  const [segments, setSegments] = React.useState<StarredSegment[] | null>(null);
+  const [routes, setRoutes] = React.useState<PlannedRoute[] | null>(null);
+  const [photos, setPhotos] = React.useState<PhotoItem[] | null>(null);
+  const [latestDetail, setLatestDetail] = React.useState<ActivityDetail | null>(null);
   const [failed, setFailed] = React.useState(false);
   const [updatedAt, setUpdatedAt] = React.useState<Date | null>(null);
   const [now, setNow] = React.useState(() => new Date());
@@ -261,28 +301,50 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
     };
   }, [auth]);
 
-  // Data lifecycle. Transient failures keep the last good data; only the
-  // "nothing loaded yet" state surfaces an error message.
-  const needsAthlete = config.view === 'athlete-card';
+  // Data lifecycle: each view declares what it needs; everything it needs is
+  // fetched on the shared 10-minute cadence. Transient failures keep the last
+  // good data; only the "nothing loaded yet" state surfaces an error message.
+  const needsRows = !['athlete-card', 'gear', 'segment-prs', 'planned-routes', 'milestones'].includes(
+    config.view,
+  );
+  const needsStats =
+    config.view === 'athlete-card' || config.view === 'records' || config.view === 'milestones';
+  const needsRoutes = config.view === 'planned-routes';
+  const needsAthlete =
+    config.view === 'athlete-card' || config.view === 'gear' || needsRoutes || needsStats;
+  const needsSegments = config.view === 'segment-prs';
+  // year-compare draws all of last year, so it needs two years of history
+  const windowDays = config.view === 'year-compare' ? LONG_WINDOW_DAYS : undefined;
   React.useEffect(() => {
     if (auth !== 'connected') return;
     let cancelled = false;
     async function load() {
       try {
-        if (needsAthlete) {
+        if (needsRows) {
+          const activities = await fetchActivities(new Date(), windowDays);
+          if (!cancelled) setRows(activities);
+        }
+        if (needsAthlete && !cancelled) {
           const profile = await fetchAthlete();
           if (cancelled) return;
           setAthlete(profile);
-          try {
-            const stats = await fetchAthleteStats(profile.id);
-            if (!cancelled) setAthleteStats(stats);
-          } catch (err) {
-            // Keep the last good lifetime totals rather than blanking
-            if (isAuthError(err)) throw err;
+          if (needsStats) {
+            try {
+              const stats = await fetchAthleteStats(profile.id);
+              if (!cancelled) setAthleteStats(stats);
+            } catch (err) {
+              // Keep the last good lifetime totals rather than blanking
+              if (isAuthError(err)) throw err;
+            }
           }
-        } else {
-          const activities = await fetchActivities();
-          if (!cancelled) setRows(activities);
+          if (needsRoutes && !cancelled) {
+            const saved = await fetchRoutes(profile.id);
+            if (!cancelled) setRoutes(saved);
+          }
+        }
+        if (needsSegments && !cancelled) {
+          const starred = await fetchStarredSegments();
+          if (!cancelled) setSegments(starred);
         }
         if (!cancelled) {
           setFailed(false);
@@ -304,19 +366,97 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
       cancelled = true;
       clearInterval(id);
     };
-  }, [auth, needsAthlete]);
+  }, [auth, needsRows, needsAthlete, needsStats, needsSegments, needsRoutes, windowDays]);
 
   const locale = currentLocale();
   const units = resolveUnits(config.units);
   const filtered = React.useMemo(
-    () => (rows ? sortNewestFirst(filterActivities(rows, config.activityFilter)) : null),
-    [rows, config.activityFilter],
+    () =>
+      rows
+        ? sortNewestFirst(filterActivities(rows, config.activityFilter, config.excludeCommutes))
+        : null,
+    [rows, config.activityFilter, config.excludeCommutes],
   );
+
+  // One extra request enriches the latest-activity hero with the detail-only
+  // fields (photo, calories, gear). Failure is non-fatal: the view renders
+  // from the summary row alone.
+  const latestId = config.view === 'latest-hero' ? (filtered?.[0]?.id ?? null) : null;
+  React.useEffect(() => {
+    if (auth !== 'connected' || !latestId) return;
+    let cancelled = false;
+    fetchActivityDetail(latestId)
+      .then((detail) => {
+        if (!cancelled) setLatestDetail(detail);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, latestId]);
+
+  // Photo wall: one detail request per photo-bearing activity (capped, long
+  // cache — old photos don't change). Failures just drop that photo.
+  const photoSources = React.useMemo(
+    () =>
+      config.view === 'photos' && filtered
+        ? filtered.filter((r) => r.photoCount > 0).slice(0, PHOTO_WALL_MAX)
+        : null,
+    [config.view, filtered],
+  );
+  // Distinguish "rows not loaded yet" (null) from "loaded, zero photos" ([])
+  // — both would key to '' and the empty case would never leave Loading.
+  const photoIdsKey = photoSources ? `ready:${photoSources.map((r) => r.id).join(',')}` : 'pending';
+  React.useEffect(() => {
+    if (auth !== 'connected' || !photoSources) return;
+    let cancelled = false;
+    Promise.all(
+      photoSources.map((r) =>
+        fetchActivityDetail(r.id, { longCache: true })
+          .then((detail) =>
+            detail.photoUrl
+              ? {
+                  activityId: r.id,
+                  url: detail.photoUrl,
+                  name: r.name,
+                  startDateLocal: r.startDateLocal,
+                }
+              : null,
+          )
+          .catch(() => null),
+      ),
+    ).then((items) => {
+      if (!cancelled) setPhotos(items.filter((p): p is PhotoItem => p !== null));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, photoIdsKey]);
+
+  // What "loaded enough to render" means depends on the view's data source
+  const ready = (() => {
+    switch (config.view) {
+      case 'athlete-card':
+      case 'gear':
+        return !!athlete;
+      case 'milestones':
+        return !!athleteStats;
+      case 'segment-prs':
+        return segments !== null;
+      case 'planned-routes':
+        return routes !== null;
+      case 'photos':
+        return photos !== null;
+      default:
+        return !!filtered;
+    }
+  })();
 
   let body: React.ReactNode;
   if (auth === 'disconnected') {
     body = <CenterMessage title={t('connectTitle')} body={t('connectBody')} />;
-  } else if (auth === 'checking' || (needsAthlete ? !athlete : !filtered)) {
+  } else if (auth === 'checking' || !ready) {
     body = <CenterMessage body={failed ? t('error') : t('loading')} />;
   } else {
     const viewProps: ViewProps = {
@@ -327,6 +467,10 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
       now,
       athlete,
       athleteStats,
+      segments,
+      routes,
+      photos,
+      latestDetail,
       updatedAt,
       tier,
       width,
@@ -341,6 +485,9 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
         break;
       case 'route-gallery':
         body = <RouteGalleryView {...viewProps} />;
+        break;
+      case 'route-map':
+        body = <RouteMapView {...viewProps} />;
         break;
       case 'training-volume':
         body = <TrainingVolumeView {...viewProps} />;
@@ -357,8 +504,35 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
       case 'year-poster':
         body = <YearPosterView {...viewProps} />;
         break;
+      case 'year-compare':
+        body = <YearCompareView {...viewProps} />;
+        break;
+      case 'fitness':
+        body = <FitnessView {...viewProps} />;
+        break;
       case 'records':
         body = <RecordsView {...viewProps} />;
+        break;
+      case 'eddington':
+        body = <EddingtonView {...viewProps} />;
+        break;
+      case 'training-times':
+        body = <TrainingTimesView {...viewProps} />;
+        break;
+      case 'segment-prs':
+        body = <SegmentPrsView {...viewProps} />;
+        break;
+      case 'gear':
+        body = <GearView {...viewProps} />;
+        break;
+      case 'planned-routes':
+        body = <PlannedRoutesView {...viewProps} />;
+        break;
+      case 'photos':
+        body = <PhotoWallView {...viewProps} />;
+        break;
+      case 'milestones':
+        body = <MilestonesView {...viewProps} />;
         break;
       case 'latest-hero':
         body = <LatestHeroView {...viewProps} />;

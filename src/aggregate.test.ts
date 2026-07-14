@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   bucketByDay,
+  cumulativeYear,
+  eddington,
   filterActivities,
+  fitnessSeries,
   goalProgress,
   heatmapValue,
+  hourDistribution,
+  nextMilestone,
   sortNewestFirst,
   tierFor,
   toGoalUnits,
   totalsForPeriod,
+  weekdayDistribution,
 } from './aggregate';
 import type { ActivityRow } from './types';
 
@@ -23,6 +29,10 @@ function row(overrides: Partial<ActivityRow> = {}): ActivityRow {
     elapsedTime: 3700,
     elevation: 100,
     avgSpeed: 3,
+    isRace: false,
+    commute: false,
+    trainer: false,
+    photoCount: 0,
     kudosCount: 0,
     prCount: 0,
     achievementCount: 0,
@@ -48,6 +58,126 @@ describe('filterActivities', () => {
     const rows = [row({ type: 'Run' }), row({ type: 'Padel' })];
     expect(filterActivities(rows, 'all')).toHaveLength(2);
     expect(filterActivities(rows, '')).toHaveLength(2);
+  });
+  it('drops commutes when excludeCommutes is set, in both filter modes', () => {
+    const rows = [
+      row({ type: 'Ride', commute: true }),
+      row({ type: 'Ride' }),
+      row({ type: 'Run', commute: true }),
+    ];
+    expect(filterActivities(rows, 'all', true)).toHaveLength(1);
+    expect(filterActivities(rows, 'Ride', true)).toHaveLength(1);
+    expect(filterActivities(rows, 'all', false)).toHaveLength(3);
+  });
+});
+
+describe('eddington', () => {
+  it('finds the largest E with E activities of at least E units', () => {
+    // Distances in km: 5, 4, 3, 1 → E=3 (three activities ≥ 3 km)
+    const rows = [5000, 4000, 3000, 1000].map((d) => row({ distance: d }));
+    const e = eddington(rows, 'metric');
+    expect(e.number).toBe(3);
+    // Next is 4: two activities are ≥ 4 km, so two more are needed
+    expect(e.towardNext).toBe(2);
+    expect(e.neededForNext).toBe(2);
+  });
+  it('is unit-aware: the same rows read lower in miles', () => {
+    const rows = [5000, 4000, 3000, 1000].map((d) => row({ distance: d }));
+    expect(eddington(rows, 'imperial').number).toBe(2);
+  });
+  it('is 0 with no qualifying activities', () => {
+    expect(eddington([row({ distance: 500 })], 'metric').number).toBe(0);
+    expect(eddington([], 'metric').neededForNext).toBe(1);
+  });
+});
+
+describe('cumulativeYear', () => {
+  it('accumulates distance by day of the year up to today', () => {
+    const rows = [
+      row({ startDateLocal: '2025-01-01T07:00:00Z', distance: 1000 }),
+      row({ startDateLocal: '2025-01-03T07:00:00Z', distance: 2000 }),
+      row({ startDateLocal: '2025-06-05T07:00:00Z', distance: 4000 }),
+    ];
+    const series = cumulativeYear(rows, 2025, NOW); // NOW is 2025-06-05
+    expect(series).toHaveLength(156); // Jan 1 … Jun 5
+    expect(series[0]).toBe(1000);
+    expect(series[1]).toBe(1000);
+    expect(series[2]).toBe(3000);
+    expect(series[series.length - 1]).toBe(7000);
+  });
+  it('covers a full past year and ignores other years', () => {
+    const rows = [
+      row({ startDateLocal: '2024-12-31T07:00:00Z', distance: 5000 }),
+      row({ startDateLocal: '2025-01-01T07:00:00Z', distance: 1000 }),
+    ];
+    const series = cumulativeYear(rows, 2024, NOW);
+    expect(series).toHaveLength(366); // 2024 is a leap year
+    expect(series[365]).toBe(5000);
+  });
+});
+
+describe('fitnessSeries', () => {
+  it('spikes fatigue above fitness right after a big day, so form goes negative', () => {
+    const rows = [row({ startDateLocal: '2025-06-04T07:00:00Z', sufferScore: 200 })];
+    const series = fitnessSeries(rows, NOW, 30);
+    const last = series[series.length - 1];
+    expect(last.fatigue).toBeGreaterThan(last.fitness);
+    expect(last.form).toBeLessThan(0);
+  });
+  it('returns at most the requested number of days', () => {
+    const rows = [row({ startDateLocal: '2025-01-01T07:00:00Z' })];
+    expect(fitnessSeries(rows, NOW, 90)).toHaveLength(90);
+    expect(fitnessSeries([], NOW, 90).length).toBeLessThanOrEqual(90);
+  });
+  it('falls back to a duration-based load without a suffer score', () => {
+    const rows = [row({ startDateLocal: '2025-06-05T07:00:00Z', movingTime: 7200 })];
+    const last = fitnessSeries(rows, NOW, 1)[0];
+    expect(last.fatigue).toBeGreaterThan(0); // 2 h ≈ load 60 decayed once
+  });
+});
+
+describe('nextMilestone', () => {
+  it('uses 1000-steps for five-digit values (the 12,480 → 13,000 case)', () => {
+    const m = nextMilestone(12_480);
+    expect(m.target).toBe(13_000);
+    expect(m.remaining).toBe(520);
+    expect(m.fraction).toBeCloseTo(0.48);
+  });
+  it('scales the step down for smaller values', () => {
+    expect(nextMilestone(812).target).toBe(900);
+    expect(nextMilestone(4_200).target).toBe(4_500);
+    expect(nextMilestone(61).target).toBe(100);
+  });
+  it('never returns the current value as the target', () => {
+    expect(nextMilestone(1000).target).toBe(1100);
+  });
+});
+
+describe('weekday and hour distributions', () => {
+  it('buckets by local weekday, Monday first', () => {
+    const rows = [
+      row({ startDateLocal: '2025-06-02T07:00:00Z', movingTime: 100 }), // Monday
+      row({ startDateLocal: '2025-06-02T18:00:00Z', movingTime: 200 }), // Monday
+      row({ startDateLocal: '2025-06-08T09:00:00Z', movingTime: 300 }), // Sunday
+    ];
+    const dist = weekdayDistribution(rows);
+    expect(dist[0]).toEqual({ count: 2, movingTime: 300 });
+    expect(dist[6]).toEqual({ count: 1, movingTime: 300 });
+    expect(dist[3].count).toBe(0);
+  });
+  it('buckets by local start hour', () => {
+    const rows = [
+      row({ startDateLocal: '2025-06-02T06:15:00Z' }),
+      row({ startDateLocal: '2025-06-03T06:45:00Z' }),
+      row({ startDateLocal: '2025-06-04T18:05:00Z' }),
+    ];
+    const dist = hourDistribution(rows);
+    expect(dist[6].count).toBe(2);
+    expect(dist[18].count).toBe(1);
+    expect(dist[12].count).toBe(0);
+  });
+  it('skips unparseable dates', () => {
+    expect(weekdayDistribution([row({ startDateLocal: 'bogus' })]).every((b) => b.count === 0)).toBe(true);
   });
 });
 

@@ -12,11 +12,18 @@ import {
 } from './date-ranges';
 import { METERS_PER_FOOT, METERS_PER_MILE } from './format';
 
-/** Case-insensitive substring filter: "Run" matches TrailRun and VirtualRun. */
-export function filterActivities(rows: ActivityRow[], filter: string): ActivityRow[] {
-  if (!filter || filter === 'all') return rows;
+/** Case-insensitive substring filter: "Run" matches TrailRun and VirtualRun.
+ *  With excludeCommutes, commute-flagged rows drop out of every view. */
+export function filterActivities(
+  rows: ActivityRow[],
+  filter: string,
+  excludeCommutes = false,
+): ActivityRow[] {
+  let out = rows;
+  if (excludeCommutes) out = out.filter((r) => !r.commute);
+  if (!filter || filter === 'all') return out;
   const f = filter.toLowerCase();
-  return rows.filter((r) => r.type.toLowerCase().includes(f));
+  return out.filter((r) => r.type.toLowerCase().includes(f));
 }
 
 export interface PeriodTotals {
@@ -181,6 +188,8 @@ export interface ActivityRecords {
   biggestClimb?: ActivityRow;
   /** Run of at least 5 km with the fastest average pace */
   fastestRun?: ActivityRow;
+  /** Highest recorded max speed on a ride */
+  topSpeed?: ActivityRow;
   mostKudos?: ActivityRow;
 }
 
@@ -205,6 +214,7 @@ export function activityRecords(rows: ActivityRow[]): ActivityRecords {
     if (isRun(r.type) && r.distance >= MIN_RECORD_RUN_METERS && r.avgSpeed > 0) {
       if (!rec.fastestRun || r.avgSpeed > rec.fastestRun.avgSpeed) rec.fastestRun = r;
     }
+    if (isRide(r.type) && (r.maxSpeed ?? 0) > (rec.topSpeed?.maxSpeed ?? 0)) rec.topSpeed = r;
     if (r.kudosCount > (rec.mostKudos?.kudosCount ?? 0)) rec.mostKudos = r;
   }
   if ((rec.biggestClimb?.elevation ?? 0) <= 0) delete rec.biggestClimb;
@@ -259,6 +269,153 @@ export function activeDays(rows: ActivityRow[], start: Date, end: Date): number 
     days.add(dayKeyFromIso(r.startDateLocal));
   }
   return days.size;
+}
+
+export interface Eddington {
+  /** Largest E with at least E activities of ≥ E km (or miles). */
+  number: number;
+  /** Activities already ≥ E+1 units long. */
+  towardNext: number;
+  /** Additional activities of ≥ E+1 units needed to reach E+1. */
+  neededForNext: number;
+}
+
+/**
+ * Eddington number over the given rows in the display unit (an "E of 40"
+ * reads differently in km vs miles, so the unit matters).
+ */
+export function eddington(rows: ActivityRow[], units: Units): Eddington {
+  const perUnit = units === 'imperial' ? METERS_PER_MILE : 1000;
+  const lengths = rows
+    .map((r) => r.distance / perUnit)
+    .filter((v) => v >= 1)
+    .sort((a, b) => b - a);
+  let e = 0;
+  while (e < lengths.length && lengths[e] >= e + 1) e++;
+  const next = e + 1;
+  const towardNext = lengths.filter((v) => v >= next).length;
+  return { number: e, towardNext, neededForNext: Math.max(0, next - towardNext) };
+}
+
+export interface TimeBucketTotals {
+  count: number;
+  /** Seconds */
+  movingTime: number;
+}
+
+/** Activity counts and time by local weekday, Monday first. */
+export function weekdayDistribution(rows: ActivityRow[]): TimeBucketTotals[] {
+  const out: TimeBucketTotals[] = Array.from({ length: 7 }, () => ({ count: 0, movingTime: 0 }));
+  for (const r of rows) {
+    const d = parseLocalIso(r.startDateLocal);
+    if (isNaN(d.getTime())) continue;
+    const idx = (d.getDay() + 6) % 7; // JS Sunday=0 → Monday-first index
+    out[idx].count++;
+    out[idx].movingTime += r.movingTime;
+  }
+  return out;
+}
+
+/** Activity counts and time by local start hour (24 buckets). */
+export function hourDistribution(rows: ActivityRow[]): TimeBucketTotals[] {
+  const out: TimeBucketTotals[] = Array.from({ length: 24 }, () => ({ count: 0, movingTime: 0 }));
+  for (const r of rows) {
+    const d = parseLocalIso(r.startDateLocal);
+    if (isNaN(d.getTime())) continue;
+    out[d.getHours()].count++;
+    out[d.getHours()].movingTime += r.movingTime;
+  }
+  return out;
+}
+
+/**
+ * Cumulative distance in meters per day of `year`, index 0 = Jan 1. For the
+ * current year the series stops at today; past years cover every day.
+ */
+export function cumulativeYear(rows: ActivityRow[], year: number, now: Date): number[] {
+  const jan1Utc = Date.UTC(year, 0, 1);
+  const isCurrent = year === now.getFullYear();
+  const days = isCurrent
+    ? Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - jan1Utc) / 86_400_000) + 1
+    : Math.round((Date.UTC(year + 1, 0, 1) - jan1Utc) / 86_400_000);
+  const daily = new Array<number>(Math.max(days, 0)).fill(0);
+  for (const r of rows) {
+    const d = parseLocalIso(r.startDateLocal);
+    if (isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+    const idx = Math.floor(
+      (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - jan1Utc) / 86_400_000,
+    );
+    if (idx >= 0 && idx < daily.length) daily[idx] += r.distance;
+  }
+  let sum = 0;
+  return daily.map((v) => (sum += v));
+}
+
+export interface FitnessPoint {
+  /** Long-term training load (42-day EMA of daily effort) */
+  fitness: number;
+  /** Short-term load (7-day EMA) */
+  fatigue: number;
+  /** fitness − fatigue: positive reads fresh, negative tired */
+  form: number;
+}
+
+/**
+ * Daily effort: Strava's relative effort (suffer score) when the account
+ * provides it, else a duration-based stand-in (~30 per moderate hour) so the
+ * trend still works for athletes without heart-rate data.
+ */
+function activityLoad(r: ActivityRow): number {
+  if (typeof r.sufferScore === 'number') return r.sufferScore;
+  return (r.movingTime / 3600) * 30;
+}
+
+/**
+ * Fitness/fatigue/form series (the CTL/ATL/TSB shape every training app
+ * draws), one point per day ending today. The EMAs warm up over the whole
+ * fetched window, then the trailing `days` points are returned.
+ */
+export function fitnessSeries(rows: ActivityRow[], now: Date, days: number): FitnessPoint[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const loads = new Map<string, number>();
+  let earliest = today;
+  for (const r of rows) {
+    const d = parseLocalIso(r.startDateLocal);
+    if (isNaN(d.getTime())) continue;
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (day > today) continue;
+    if (day < earliest) earliest = day;
+    const key = dayKey(day);
+    loads.set(key, (loads.get(key) ?? 0) + activityLoad(r));
+  }
+  const kFit = 1 - Math.exp(-1 / 42);
+  const kFat = 1 - Math.exp(-1 / 7);
+  let fit = 0;
+  let fat = 0;
+  const series: FitnessPoint[] = [];
+  for (let day = earliest; day <= today; day = addDays(day, 1)) {
+    const load = loads.get(dayKey(day)) ?? 0;
+    fit += (load - fit) * kFit;
+    fat += (load - fat) * kFat;
+    series.push({ fitness: fit, fatigue: fat, form: fit - fat });
+  }
+  return series.slice(-days);
+}
+
+export interface Milestone {
+  /** Next round number above the current value, in display units */
+  target: number;
+  remaining: number;
+  /** Progress from the previous round number to the target, [0, 1] */
+  fraction: number;
+}
+
+/** Next round milestone: steps of 50 below 500, 100 below 3k, 500 below 10k, 1000 beyond. */
+export function nextMilestone(v: number): Milestone {
+  const step = v >= 10_000 ? 1_000 : v >= 3_000 ? 500 : v >= 500 ? 100 : 50;
+  const target = (Math.floor(v / step) + 1) * step;
+  const fraction = Math.min(1, Math.max(0, (v - (target - step)) / step));
+  return { target, remaining: target - v, fraction };
 }
 
 /** Kudos received within [start, end). */

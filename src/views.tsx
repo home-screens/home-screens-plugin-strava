@@ -2,12 +2,16 @@
 
 import React from 'react';
 import type {
+  ActivityDetail,
   ActivityRow,
   AthleteProfile,
   AthleteStats,
   ActivityTotals,
   GoalMetric,
   GoalPeriod,
+  PhotoItem,
+  PlannedRoute,
+  StarredSegment,
   StravaConfig,
   Units,
 } from './types';
@@ -39,6 +43,14 @@ export interface ViewProps {
   now: Date;
   athlete?: AthleteProfile | null;
   athleteStats?: AthleteStats | null;
+  /** Starred segments with athlete PRs; only fetched for the segment-prs view */
+  segments?: StarredSegment[] | null;
+  /** Saved routes; only fetched for the planned-routes view */
+  routes?: PlannedRoute[] | null;
+  /** Primary photos of recent photo-bearing activities; only for the photos view */
+  photos?: PhotoItem[] | null;
+  /** Detailed extras for the latest activity; only fetched for latest-hero */
+  latestDetail?: ActivityDetail | null;
   /** Last successful fetch, for the dashboard's "updated …" note */
   updatedAt?: Date | null;
   /** Measured module box, bucketed into a discrete layout tier */
@@ -228,6 +240,24 @@ export function RecentActivitiesView({ rows, config, units, locale, now, width, 
                 }}
               >
                 {truncate(a.name, 48)}
+                {a.isRace && (
+                  <span
+                    style={{
+                      fontSize: '0.6em',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginLeft: '0.9em',
+                      padding: '0.2em 0.9em',
+                      borderRadius: '1em',
+                      background: 'rgba(252,76,2,0.16)',
+                      color: '#ff8a5c',
+                      verticalAlign: 'middle',
+                    }}
+                  >
+                    {t('race')}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: '0.75em', opacity: 0.55 }}>
                 {relativeTime(a.startDate, locale, now, t('justNow'))}
@@ -602,15 +632,28 @@ export function HeatmapView({ rows, config, locale, now, width, height }: ViewPr
 
 // ─── Latest activity hero ────────────────────────────────────────────────────
 
-export function LatestHeroView({ rows, config, units, locale, now, width, height }: ViewProps) {
+export function LatestHeroView({
+  rows,
+  config,
+  units,
+  locale,
+  now,
+  width,
+  height,
+  latestDetail,
+}: ViewProps) {
   const a = rows[0];
   if (!a) return <CenterMessage body={t('noActivities')} />;
+  // The detail arrives a beat later (separate fetch); ignore it if the
+  // latest activity changed in between.
+  const detail = latestDetail && latestDetail.id === a.id ? latestDetail : null;
   const ps = formatPaceOrSpeed(a, units, locale);
   // Canvas matches the route's own aspect so the drawing fills the map area
   // instead of floating in a fixed landscape viewBox
   const pts = config.showMap && a.polyline ? decodePolyline(a.polyline) : [];
   const vbH = Math.round(100 / Math.max(0.33, Math.min(routeAspect(pts), 3)));
   const path = pts.length >= 2 ? polylineToPath(pts, 100, vbH) : '';
+  const photo = detail?.photoUrl;
   return (
     <div
       style={{
@@ -654,24 +697,47 @@ export function LatestHeroView({ rows, config, units, locale, now, width, height
         {a.elevation > 0 && (
           <Stat value={formatElevation(a.elevation, units, locale)} label={t('elevation')} />
         )}
+        {detail?.calories != null && detail.calories > 0 && (
+          <Stat
+            value={`${formatNumber(Math.round(detail.calories), locale)} kcal`}
+            label={t('calories')}
+          />
+        )}
       </div>
-      {path && (
-        <div style={{ flex: 1, minHeight: '3em' }}>
-          <svg
-            viewBox={`0 0 100 ${vbH}`}
-            preserveAspectRatio="xMidYMid meet"
-            style={{ width: '100%', height: '100%' }}
-          >
-            <path
-              d={path}
-              fill="none"
-              stroke={STRAVA_ORANGE}
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
+      {(path || photo) && (
+        <div style={{ flex: 1, minHeight: '3em', display: 'flex', gap: '0.7em' }}>
+          {path && (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <svg
+                viewBox={`0 0 100 ${vbH}`}
+                preserveAspectRatio="xMidYMid meet"
+                style={{ width: '100%', height: '100%' }}
+              >
+                <path
+                  d={path}
+                  fill="none"
+                  stroke={STRAVA_ORANGE}
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </div>
+          )}
+          {photo && (
+            <img
+              src={photo}
+              alt=""
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: '0.85em',
+              }}
             />
-          </svg>
+          )}
         </div>
       )}
       <div
@@ -683,11 +749,27 @@ export function LatestHeroView({ rows, config, units, locale, now, width, height
           alignItems: 'center',
         }}
       >
+        {a.isRace && (
+          <span style={{ color: '#ff8a5c', fontWeight: 700, textTransform: 'uppercase' }}>
+            {t('race')}
+          </span>
+        )}
         <span>
           {formatNumber(a.kudosCount, locale)} {t('kudos')}
         </span>
         {a.prCount > 0 && <span>{t('prCount', { count: a.prCount })}</span>}
-        {a.deviceName && <span style={{ marginLeft: 'auto' }}>{a.deviceName}</span>}
+        {(detail?.gearName || a.deviceName) && (
+          <span
+            style={{
+              marginLeft: 'auto',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {[detail?.gearName, a.deviceName].filter(Boolean).join(' · ')}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -741,12 +823,14 @@ function LifetimeCell({
   sport,
   label,
   totals,
+  ytd,
   units,
   locale,
 }: {
   sport: string;
   label: string;
   totals: ActivityTotals | undefined;
+  ytd: ActivityTotals | undefined;
   units: Units;
   locale: string;
 }) {
@@ -785,6 +869,11 @@ function LifetimeCell({
       <div style={{ fontSize: '0.9em', opacity: 0.65 }}>
         {totals ? formatDuration(totals.movingTime) : '–'}
       </div>
+      {ytd && ytd.count > 0 && (
+        <div style={{ fontSize: '0.8em', color: '#ff8a5c' }}>
+          {t('ytdLine', { value: formatDistance(ytd.distance, units, locale) })}
+        </div>
+      )}
     </div>
   );
 }
@@ -792,6 +881,14 @@ function LifetimeCell({
 export function AthleteCardView({ athlete, athleteStats, units, locale, width, height }: ViewProps) {
   if (!athlete) return <CenterMessage body={t('loading')} />;
   const location = [athlete.city, athlete.state, athlete.country].filter(Boolean).join(', ');
+  const subtitle = [
+    location,
+    typeof athlete.followerCount === 'number' && athlete.followerCount > 0
+      ? t('followers', { count: athlete.followerCount })
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div
       style={{
@@ -817,7 +914,7 @@ export function AthleteCardView({ athlete, athleteStats, units, locale, width, h
           >
             {athlete.firstName} {athlete.lastName}
           </div>
-          {location && <div style={{ fontSize: '0.8em', opacity: 0.6 }}>{location}</div>}
+          {subtitle && <div style={{ fontSize: '0.8em', opacity: 0.6 }}>{subtitle}</div>}
         </div>
       </div>
       <div
@@ -848,6 +945,7 @@ export function AthleteCardView({ athlete, athleteStats, units, locale, width, h
           sport="Ride"
           label={t('rides')}
           totals={athleteStats?.allRideTotals}
+          ytd={athleteStats?.ytdRideTotals}
           units={units}
           locale={locale}
         />
@@ -855,6 +953,7 @@ export function AthleteCardView({ athlete, athleteStats, units, locale, width, h
           sport="Run"
           label={t('runs')}
           totals={athleteStats?.allRunTotals}
+          ytd={athleteStats?.ytdRunTotals}
           units={units}
           locale={locale}
         />
@@ -862,6 +961,7 @@ export function AthleteCardView({ athlete, athleteStats, units, locale, width, h
           sport="Swim"
           label={t('swims')}
           totals={athleteStats?.allSwimTotals}
+          ytd={athleteStats?.ytdSwimTotals}
           units={units}
           locale={locale}
         />

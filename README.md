@@ -1,6 +1,6 @@
 # Home Screens Strava Plugin
 
-Show your Strava activities on your [Home Screens](https://homescreens.dev) display: recent activities, weekly and yearly stat tiles, goal progress rings, a 52-week training heatmap, your latest route, and an athlete card.
+Show your Strava activities on your [Home Screens](https://homescreens.dev) display: recent activities, weekly and yearly stat tiles, goal progress rings, a 52-week training heatmap, a map of everywhere you go, gear mileage, segment PRs, your Eddington number, and more.
 
 Read-only, one athlete, refreshed every 10 minutes.
 
@@ -36,20 +36,37 @@ Your Strava sign-in happens on strava.com — this plugin never sees your passwo
 
 | View | Shows |
 |---|---|
+| **Dashboard** | Your latest activity, this week's day-by-day bars, and your first goal ring (or week-over-week deltas) |
 | **Stats tiles** | Distance, time, and activity count for this week and this year |
-| **Recent activities** | Your latest 1–10 activities with distance and pace or speed |
+| **Recent activities** | Your latest 1–10 activities with distance and pace or speed — races get a badge |
+| **Route gallery** | Your recent outdoor routes drawn as line art |
+| **Route map** | Every route from the last year overlaid on one canvas — the places you actually go |
+| **Training volume** | A 12-week bar chart of distance or time with the 4-week average |
 | **Goal progress** | Progress rings for weekly or yearly distance, time, or climbing goals, with an "On track" check |
 | **Heatmap** | A 52-week grid of your training, like Strava's training log |
-| **Latest activity** | Your newest activity, big: stats, kudos, PRs, and the route map |
-| **Athlete card** | Your profile photo, name, and all-time ride/run/swim totals |
+| **Month calendar** | This month as a calendar, colored by training intensity |
+| **Year so far** | A poster of the year: distance, time, climbing, active days, kudos, longest streak |
+| **This year vs last** | Cumulative distance lines for this year and last, with the to-date difference |
+| **Fitness trend** | Fitness and fatigue lines from your daily training load, with your current form |
+| **Records** | Your bests: longest ride and run, biggest climb, fastest run, top speed — plus Strava's all-time longest ride and biggest climb |
+| **Eddington number** | Your Eddington number (E activities of at least E km or miles) and progress to the next one |
+| **Training times** | When you train: activity counts by weekday and by time of day |
+| **Segment PRs** | Your starred Strava segments with your best time on each |
+| **Gear** | Your bikes and shoes with lifetime mileage bars |
+| **Planned routes** | Routes you saved on Strava, drawn as line art with distance and estimated time |
+| **Photos** | A wall of photos from your recent activities |
+| **Milestones** | Lifetime distance per sport with progress to the next round number |
+| **Latest activity** | Your newest activity, big: stats, calories, kudos, PRs, the route map, and its photo |
+| **Athlete card** | Your profile photo, name, followers, and all-time plus this-year ride/run/swim totals |
 
 ## Options
 
 | Option | What it does |
 |---|---|
-| **View** | Which of the six views to show |
+| **View** | Which of the twenty-two views to show |
 | **Units** | Kilometers or miles; "Match display settings" follows your display's units |
 | **Activity type** | Show everything, or only runs, rides, swims, walks, hikes, skiing, or rowing. Picking "Runs" also includes trail runs and virtual runs. |
+| **Skip commutes** | Leave out activities you marked as a commute on Strava |
 | **Activities shown** | How many rows the Recent activities view lists (1–10) |
 | **Goals** | For the Goal progress view: each goal has a measure (distance, time, or climbing), a period (this week or this year), and a target. Targets use natural units: distance in km or miles, time in hours, climbing in meters or feet. |
 | **Color squares by** | What drives the heatmap colors: activity count, distance, or time |
@@ -85,7 +102,7 @@ Notes:
 
 - Data flows through the Home Screens plugin proxy, which injects and refreshes the OAuth token server-side; this bundle contains no auth code and never sees the client secret.
 - Strava is migrating its API host to `www.api-v3.strava.com` (mandatory June 1, 2027). Both hosts are already allowlisted in the manifest; the switch is the single `API_BASE` constant in `src/api.ts`.
-- Activity data covers the last ~366 days (up to 600 activities), which is what the heatmap and yearly stats need.
+- Activity data covers the last ~366 days (up to 600 activities), which is what the heatmap and yearly stats need. The "This year vs last" view fetches two years (up to 1,200) so last year's full line can be drawn.
 
 ## License
 

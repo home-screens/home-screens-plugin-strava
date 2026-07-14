@@ -1,4 +1,5 @@
-/** Insight views: training volume chart, year poster, records, month calendar. */
+/** Insight views: training volume, year poster, records, month calendar,
+ *  Eddington number, and training-time distributions. */
 
 import React from 'react';
 import type { ActivityRow } from './types';
@@ -6,13 +7,17 @@ import {
   activeDays,
   activityRecords,
   bucketByDay,
+  eddington,
   heatmapValue,
+  hourDistribution,
   kudosForRange,
   streaks,
   tierFor,
   totalsForRange,
+  weekdayDistribution,
   weeklyTotals,
   type PeriodTotals,
+  type TimeBucketTotals,
 } from './aggregate';
 import {
   everestCount,
@@ -27,7 +32,7 @@ import {
   truncate,
 } from './format';
 import { addDays, monthCalendarGrid, periodBounds, startOfIsoWeek } from './date-ranges';
-import { ActivityIcon, HeartIcon, SportIcon } from './icons';
+import { ActivityIcon, HeartIcon, MountainIcon, SportIcon } from './icons';
 import { t } from './i18n';
 import { typeScale } from './size';
 import { CenterMessage, STRAVA_ORANGE, Stat, type ViewProps } from './views';
@@ -318,9 +323,29 @@ function recordEntry(
   return { icon, label, name: truncate(row.name, 40), value, date: shortDate(row.startDateLocal, locale) };
 }
 
-export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
+export function RecordsView({ rows, units, locale, width, height, athleteStats }: ViewProps) {
   const rec = activityRecords(rows);
   const entries: RecordEntry[] = [];
+  // Lifetime bests Strava tracks server-side — deeper history than our
+  // 12-month window, so they lead the list when they beat the window.
+  if (athleteStats && athleteStats.biggestRideDistance > 0) {
+    entries.push({
+      icon: <SportIcon type="Ride" size="1.2em" />,
+      label: t('biggestRideEver'),
+      name: t('allTime'),
+      value: formatDistance(athleteStats.biggestRideDistance, units, locale),
+      date: '',
+    });
+  }
+  if (athleteStats && athleteStats.biggestClimbElevation > 0) {
+    entries.push({
+      icon: <MountainIcon size="1.2em" />,
+      label: t('biggestClimbEver'),
+      name: t('allTime'),
+      value: formatElevation(athleteStats.biggestClimbElevation, units, locale),
+      date: '',
+    });
+  }
   if (rec.longestRide) {
     entries.push(
       recordEntry(
@@ -368,6 +393,21 @@ export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
       );
     }
   }
+  if (rec.topSpeed?.maxSpeed) {
+    const speed =
+      units === 'imperial'
+        ? (rec.topSpeed.maxSpeed * 3600) / METERS_PER_MILE
+        : rec.topSpeed.maxSpeed * 3.6;
+    entries.push(
+      recordEntry(
+        <SportIcon type="Ride" size="1.2em" />,
+        t('topSpeed'),
+        rec.topSpeed,
+        `${formatNumber(speed, locale, 1)} ${units === 'imperial' ? 'mph' : 'km/h'}`,
+        locale,
+      ),
+    );
+  }
   if (rec.mostKudos && rec.mostKudos.kudosCount > 0) {
     entries.push(
       recordEntry(
@@ -380,6 +420,9 @@ export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
     );
   }
   if (entries.length === 0) return <CenterMessage body={t('noActivities')} />;
+  // Up to 8 entries now — trim to what the box height actually fits
+  const fit = Math.max(3, Math.floor((height - 40) / 66));
+  const shown = entries.slice(0, fit);
 
   return (
     <div
@@ -390,10 +433,10 @@ export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
         flexDirection: 'column',
         justifyContent: 'space-evenly',
         overflow: 'hidden',
-        fontSize: `${typeScale(width, height, 560, entries.length * 120 + 60, 1.8)}em`,
+        fontSize: `${typeScale(width, height, 560, shown.length * 120 + 60, 1.8)}em`,
       }}
     >
-      {entries.map((entry, i) => (
+      {shown.map((entry, i) => (
         <div
           key={entry.label}
           style={{
@@ -401,7 +444,7 @@ export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
             alignItems: 'center',
             gap: '1em',
             padding: '0.85em 0',
-            borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            borderBottom: i < shown.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none',
           }}
         >
           <div
@@ -452,6 +495,237 @@ export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Eddington number ────────────────────────────────────────────────────────
+
+export function EddingtonView({ rows, units, locale, width, height }: ViewProps) {
+  if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
+  const e = eddington(rows, units);
+  const unit = units === 'imperial' ? 'mi' : 'km';
+  const next = e.number + 1;
+  const nextFraction = next > 0 ? Math.min(1, e.towardNext / next) : 0;
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-evenly',
+        fontSize: `${typeScale(width, height, 520, 460, 1.9)}em`,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: '5em', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
+          {formatNumber(e.number, locale)}
+        </div>
+        <div style={{ fontSize: '0.9em', color: 'rgba(255,255,255,0.55)', marginTop: '0.6em' }}>
+          {t('eddingtonMeaning', { count: e.number, unit })}
+        </div>
+      </div>
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '0.8em',
+            marginBottom: '0.5em',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.78)' }}>
+            {t('eddingtonNext', { next })}
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+            {t('eddingtonNeeded', { count: e.neededForNext, next, unit })}
+          </span>
+        </div>
+        <div
+          style={{
+            height: '0.85em',
+            borderRadius: '999px',
+            background: 'rgba(255,255,255,0.08)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.round(nextFraction * 100)}%`,
+              height: '100%',
+              borderRadius: '999px',
+              background: STRAVA_ORANGE,
+            }}
+          />
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: '1.7em',
+          paddingTop: '1em',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <Stat
+          value={formatNumber(e.towardNext, locale)}
+          label={t('eddingtonQualifying', { next, unit })}
+        />
+        <Stat value={formatNumber(rows.length, locale)} label={t('activities')} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Training times ──────────────────────────────────────────────────────────
+
+function BarChart({
+  values,
+  labels,
+  highlight,
+}: {
+  values: number[];
+  labels: string[];
+  highlight: number;
+}) {
+  const max = Math.max(...values);
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'flex-end', gap: '0.45em' }}>
+        {values.map((v, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: max > 0 ? `${Math.max((v / max) * 100, 2)}%` : '2%',
+              minHeight: '3px',
+              borderRadius: '4px 4px 2px 2px',
+              background: i === highlight && v > 0 ? STRAVA_ORANGE : 'rgba(255,255,255,0.22)',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '0.45em', marginTop: '0.4em', flexShrink: 0 }}>
+        {labels.map((label, i) => (
+          <span
+            key={i}
+            style={{
+              flex: 1,
+              fontSize: '0.7em',
+              textAlign: 'center',
+              color: i === highlight ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.35)',
+              fontWeight: i === highlight ? 700 : 400,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: '0.7em',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        opacity: 0.55,
+        marginBottom: '0.6em',
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+const HOUR_BUCKET = 3; // 24h → 8 bars
+
+export function TrainingTimesView({ rows, locale, now, width, height }: ViewProps) {
+  if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
+  const byWeekday = weekdayDistribution(rows);
+  const byHour = hourDistribution(rows);
+  const hourBuckets: TimeBucketTotals[] = Array.from({ length: 24 / HOUR_BUCKET }, (_, b) => {
+    const slice = byHour.slice(b * HOUR_BUCKET, (b + 1) * HOUR_BUCKET);
+    return {
+      count: slice.reduce((s, v) => s + v.count, 0),
+      movingTime: slice.reduce((s, v) => s + v.movingTime, 0),
+    };
+  });
+
+  const monday = startOfIsoWeek(now);
+  const weekdayLabels = Array.from({ length: 7 }, (_, i) => {
+    try {
+      return new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(addDays(monday, i));
+    } catch {
+      return ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i];
+    }
+  });
+  const hourLabel = (b: number): string => {
+    const d = new Date(2000, 0, 1, b * HOUR_BUCKET);
+    try {
+      return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(d);
+    } catch {
+      return `${b * HOUR_BUCKET}`;
+    }
+  };
+
+  const weekdayCounts = byWeekday.map((v) => v.count);
+  const hourCounts = hourBuckets.map((v) => v.count);
+  const topWeekday = weekdayCounts.indexOf(Math.max(...weekdayCounts));
+  const topHourBucket = hourCounts.indexOf(Math.max(...hourCounts));
+  const topWeekdayName = (() => {
+    try {
+      return new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(
+        addDays(monday, topWeekday),
+      );
+    } catch {
+      return weekdayLabels[topWeekday];
+    }
+  })();
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.2em',
+        fontSize: `${typeScale(width, height, 560, 500, 1.6)}em`,
+      }}
+    >
+      <div style={{ flex: 1.1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <SectionLabel>{t('byWeekday')}</SectionLabel>
+        <BarChart values={weekdayCounts} labels={weekdayLabels} highlight={topWeekday} />
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <SectionLabel>{t('byTimeOfDay')}</SectionLabel>
+        <BarChart
+          values={hourCounts}
+          labels={hourBuckets.map((_, b) => hourLabel(b))}
+          highlight={topHourBucket}
+        />
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: '1.7em',
+          paddingTop: '1em',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          flexShrink: 0,
+        }}
+      >
+        <Stat value={topWeekdayName} label={t('favoriteDay')} />
+        <Stat value={hourLabel(topHourBucket)} label={t('favoriteTime')} />
+      </div>
     </div>
   );
 }

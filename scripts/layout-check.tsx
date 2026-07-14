@@ -11,7 +11,16 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { chromium } from 'playwright';
 
-import type { ActivityRow, AthleteProfile, AthleteStats, StravaConfig } from '../src/types';
+import type {
+  ActivityDetail,
+  ActivityRow,
+  AthleteProfile,
+  AthleteStats,
+  PhotoItem,
+  PlannedRoute,
+  StarredSegment,
+  StravaConfig,
+} from '../src/types';
 import { filterActivities, sortNewestFirst } from '../src/aggregate';
 import { relativeTime } from '../src/format';
 import { t } from '../src/i18n';
@@ -27,14 +36,23 @@ import {
   type ViewProps,
 } from '../src/views';
 import { DashboardView } from '../src/views-dashboard';
-import { RouteGalleryView } from '../src/views-gallery';
 import {
+  PhotoWallView,
+  PlannedRoutesView,
+  RouteGalleryView,
+  RouteMapView,
+} from '../src/views-gallery';
+import {
+  EddingtonView,
   MonthCalendarView,
   RecordsView,
+  TrainingTimesView,
   TrainingVolumeView,
   volumeUnit,
   YearPosterView,
 } from '../src/views-insights';
+import { GearView, MilestonesView, SegmentPrsView } from '../src/views-athlete';
+import { FitnessView, YearCompareView } from '../src/views-trends';
 
 // ─── Fixtures ───────────────────────────────────────────────────────
 // A year of activities in the shape the API mapper produces. Everything is
@@ -137,6 +155,11 @@ function makeActivity(id: number, daysBack: number, spec: SportSpec, scale = 1):
     elevation: Math.round(spec.elevation * scale),
     avgSpeed: movingTime > 0 ? distance / movingTime : 0,
     avgHr: spec.avgHr,
+    maxSpeed: movingTime > 0 ? (distance / movingTime) * 1.6 : undefined,
+    isRace: id % 17 === 0,
+    commute: id % 11 === 0,
+    trainer: spec.type === 'VirtualRide',
+    photoCount: id % 5 === 0 ? 1 + (id % 3) : 0,
     kudosCount: (id * 7) % 23,
     prCount: id % 9 === 0 ? 1 + (id % 3) : 0,
     achievementCount: id % 4,
@@ -181,16 +204,67 @@ const ATHLETE: AthleteProfile = {
   city: 'Kansas City',
   state: 'Missouri',
   country: 'United States',
+  followerCount: 184,
+  weight: 78,
+  ftp: 245,
+  bikes: [
+    { id: 'b1', name: 'Canyon Endurace CF SL', primary: true, distance: 8_412_000 },
+    { id: 'b2', name: 'Santa Cruz Tallboy', primary: false, distance: 2_106_000 },
+    { id: 'b3', name: 'Surly Cross-Check (commuter)', primary: false, distance: 1_030_000 },
+  ],
+  shoes: [
+    { id: 's1', name: 'Saucony Endorphin Speed 4', primary: true, distance: 612_000 },
+    { id: 's2', name: 'Hoka Speedgoat 5', primary: false, distance: 305_000 },
+  ],
 };
 const ATHLETE_STATS: AthleteStats = {
   allRideTotals: { count: 412, distance: 12_480_000, movingTime: 1_684_800, elevation: 96_400 },
   allRunTotals: { count: 655, distance: 5_940_000, movingTime: 1_527_600, elevation: 41_200 },
   allSwimTotals: { count: 38, distance: 61_500, movingTime: 90_000, elevation: 0 },
+  ytdRideTotals: { count: 64, distance: 1_890_000, movingTime: 260_100, elevation: 15_800 },
+  ytdRunTotals: { count: 88, distance: 812_000, movingTime: 216_000, elevation: 6_400 },
+  ytdSwimTotals: { count: 6, distance: 9_500, movingTime: 13_500, elevation: 0 },
+  recentRideTotals: { count: 9, distance: 262_000, movingTime: 37_800, elevation: 2_400 },
+  recentRunTotals: { count: 12, distance: 118_000, movingTime: 31_500, elevation: 900 },
+  recentSwimTotals: { count: 1, distance: 1_500, movingTime: 2_100, elevation: 0 },
+  biggestRideDistance: 164_300,
+  biggestClimbElevation: 1_412,
 };
+const SEGMENTS: StarredSegment[] = [
+  { id: 1, name: 'Lookout Mountain Climb', activityType: 'Ride', distance: 7_540, averageGrade: 5.4, climbCategory: 3, city: 'Golden', prTime: 1_832, prDate: '2026-04-12', effortCount: 41 },
+  { id: 2, name: 'River Path Sprint', activityType: 'Ride', distance: 1_120, averageGrade: 0.4, climbCategory: 0, city: 'Kansas City', prTime: 132, prDate: '2026-06-02', effortCount: 118 },
+  { id: 3, name: 'Cemetery Hill Repeats', activityType: 'Run', distance: 640, averageGrade: 8.1, climbCategory: 0, prTime: 174, prDate: '2026-01-19', effortCount: 26 },
+  { id: 4, name: 'Big Cottonwood Canyon Full', activityType: 'Ride', distance: 23_900, averageGrade: 6.2, climbCategory: 5, city: 'Salt Lake City', prTime: 5_610, prDate: '2025-09-07', effortCount: 3 },
+  { id: 5, name: 'Park Loop Counterclockwise', activityType: 'Run', distance: 3_150, averageGrade: 0.9, climbCategory: 0, prTime: 812, prDate: '2026-05-30', effortCount: 63 },
+  { id: 6, name: 'Windy Ridge Traverse', activityType: 'Ride', distance: 11_300, averageGrade: 2.7, climbCategory: 1 },
+];
+// A 1×1 transparent PNG keeps layout boxes real without a network fetch
+const TRANSPARENT_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg==';
+const LATEST_DETAIL_BASE: Omit<ActivityDetail, 'id'> = {
+  calories: 842,
+  gearName: 'Canyon Endurace CF SL',
+  photoUrl: TRANSPARENT_PNG,
+};
+const PLANNED_ROUTES: PlannedRoute[] = Array.from({ length: 8 }, (_, i) => ({
+  id: `route-${i}`,
+  name: ['Gravel Century Plan', 'Hilly Fondo', 'Coffee Loop', 'River Out-and-Back', 'Climbing Day', 'Recovery Spin', 'Long Trail Mix', 'Night Loop'][i],
+  distance: 24_000 + i * 17_500,
+  elevationGain: 180 + i * 210,
+  estimatedTime: 3_400 + i * 2_500,
+  polyline: makeRoute(i * 7 + 2),
+}));
+const PHOTOS: PhotoItem[] = Array.from({ length: 10 }, (_, i) => ({
+  activityId: 9_000 + i,
+  url: TRANSPARENT_PNG,
+  name: `Ride photo ${i + 1}`,
+  startDateLocal: isoPair(i * 4, 9).startDateLocal,
+}));
 
 const BASE_CONFIG: StravaConfig = {
   view: 'stats-tiles',
   activityFilter: 'all',
+  excludeCommutes: false,
   recentLimit: 5,
   goals: [],
   units: 'imperial',
@@ -222,6 +296,8 @@ interface ViewCase {
   config?: Partial<StravaConfig>;
   /** Override the activity fixture (e.g. an empty current week) */
   rows?: ActivityRow[];
+  /** Attach the detailed-activity extras (latest-hero enrichment) */
+  withDetail?: boolean;
 }
 const CASES: ViewCase[] = [
   { name: 'dashboard', view: 'dashboard', component: DashboardView,
@@ -247,7 +323,18 @@ const CASES: ViewCase[] = [
   { name: 'month-calendar', view: 'month-calendar', component: MonthCalendarView },
   { name: 'year-poster', view: 'year-poster', component: YearPosterView },
   { name: 'records', view: 'records', component: RecordsView },
+  { name: 'route-map', view: 'route-map', component: RouteMapView },
+  { name: 'year-compare', view: 'year-compare', component: YearCompareView },
+  { name: 'fitness', view: 'fitness', component: FitnessView },
+  { name: 'planned-routes', view: 'planned-routes', component: PlannedRoutesView },
+  { name: 'photos', view: 'photos', component: PhotoWallView },
+  { name: 'milestones', view: 'milestones', component: MilestonesView },
+  { name: 'eddington', view: 'eddington', component: EddingtonView },
+  { name: 'training-times', view: 'training-times', component: TrainingTimesView },
+  { name: 'segment-prs', view: 'segment-prs', component: SegmentPrsView },
+  { name: 'gear', view: 'gear', component: GearView },
   { name: 'latest-hero', view: 'latest-hero', component: LatestHeroView },
+  { name: 'latest-hero-photo', view: 'latest-hero', component: LatestHeroView, withDetail: true },
   { name: 'athlete-card', view: 'athlete-card', component: AthleteCardView },
 ];
 
@@ -256,8 +343,9 @@ const deadBudget = (view: string, h: number) => Math.max(90, h * 0.3);
 // Boxes where the budget is deliberately waived (overflow still checked).
 const DEAD_SPACE_EXEMPT = new Set<string>([]);
 // The heatmap band's aspect is fixed by the data (up to 52 weeks × 7 days at
-// a legible cell size), so boxes that don't match it letterbox by design.
-const DEAD_SPACE_EXEMPT_VIEWS = new Set<string>(['heatmap']);
+// a legible cell size), and the route-map's aspect comes from the routes'
+// geographic bounds — boxes that don't match either letterbox by design.
+const DEAD_SPACE_EXEMPT_VIEWS = new Set<string>(['heatmap', 'route-map']);
 
 // ─── Harness page ───────────────────────────────────────────────────
 const sorted = sortNewestFirst(filterActivities(rows, 'all'));
@@ -267,14 +355,20 @@ for (const c of CASES) {
   for (const [sizeName, w, h] of SIZES) {
     const cw = w - PADDING * 2;
     const ch = h - PADDING * 2;
+    const caseRows = c.rows ? sortNewestFirst(filterActivities(c.rows, 'all')) : sorted;
     const props: ViewProps = {
-      rows: c.rows ? sortNewestFirst(filterActivities(c.rows, 'all')) : sorted,
+      rows: caseRows,
       config,
       units: 'imperial',
       locale: 'en-US',
       now: NOW,
       athlete: ATHLETE,
       athleteStats: ATHLETE_STATS,
+      segments: SEGMENTS,
+      routes: PLANNED_ROUTES,
+      photos: PHOTOS,
+      latestDetail:
+        c.withDetail && caseRows[0] ? { ...LATEST_DETAIL_BASE, id: caseRows[0].id } : null,
       updatedAt: new Date(NOW.getTime() - 300_000),
       tier: tierFor(cw, ch),
       width: cw,
