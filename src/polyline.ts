@@ -84,6 +84,31 @@ export function projectPoints(points: LatLng[], width: number, height: number): 
   }));
 }
 
+/**
+ * Width/height aspect of the route's bounding box (longitude compensated).
+ * Lets callers pick an SVG canvas matching the route so it isn't letterboxed
+ * twice (route→canvas, then canvas→layout box). Returns 1 for degenerate
+ * input.
+ */
+export function routeAspect(points: LatLng[]): number {
+  if (points.length < 2) return 1;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const [lat, lng] of points) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+  const midLat = (minLat + maxLat) / 2;
+  const spanX = (maxLng - minLng) * Math.cos((midLat * Math.PI) / 180);
+  const spanY = maxLat - minLat;
+  if (!(spanX > 0) || !(spanY > 0)) return 1;
+  return spanX / spanY;
+}
+
 /** SVG path through the projected points; '' when there is nothing to draw. */
 export function polylineToPath(points: LatLng[], width: number, height: number): string {
   const projected = projectPoints(points, width, height);

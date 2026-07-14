@@ -18,6 +18,7 @@ import {
   truncate,
 } from './format';
 import { addDays, dayKey, periodBounds, startOfIsoWeek } from './date-ranges';
+import { typeScale } from './size';
 import { SportIcon } from './icons';
 import { sportLabel, t } from './i18n';
 import { RouteArt } from './views-gallery';
@@ -52,9 +53,14 @@ function Chip({ children, orange }: { children: React.ReactNode; orange?: boolea
 }
 
 export function DashboardView(props: ViewProps) {
-  const { rows, config, units, locale, now } = props;
+  const { rows, config, units, locale, now, width, height } = props;
   const latest = rows[0];
   if (!latest) return <CenterMessage body={t('noActivities')} />;
+
+  // Small boxes: no room for the route thumb or the goal/delta side pane;
+  // short boxes additionally drop the chips row and tighten the rhythm.
+  const compact = width < 440;
+  const short = height < 480;
 
   const pace = formatPaceOrSpeed(latest, units, locale);
   const week = totalsForPeriod(rows, 'week', now);
@@ -81,7 +87,16 @@ export function DashboardView(props: ViewProps) {
   const goal = config.goals[0];
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        // Dense view: scale gently, the week strip absorbs the rest
+        fontSize: `${typeScale(width, height, 680, 480, 1.35)}em`,
+      }}
+    >
       {/* ── latest activity hero ── */}
       <div style={{ display: 'flex', gap: '1.4em', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -112,7 +127,14 @@ export function DashboardView(props: ViewProps) {
             {sportLabel(latest.type)} · {relativeTime(latest.startDate, locale, now, t('justNow'))}
             {latest.deviceName ? ` · ${latest.deviceName}` : ''}
           </div>
-          <div style={{ display: 'flex', gap: '2.3em', marginLeft: '3.35em', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: compact ? '1em 2.3em' : '2.3em',
+              marginLeft: '3.35em',
+              flexWrap: 'wrap',
+            }}
+          >
             {latest.distance > 0 && (
               <Stat value={formatDistance(latest.distance, units, locale)} label={t('distance')} />
             )}
@@ -127,14 +149,16 @@ export function DashboardView(props: ViewProps) {
               />
             )}
           </div>
-          <div style={{ display: 'flex', gap: '0.55em', margin: '1.1em 0 0 3.35em' }}>
-            {latest.prCount > 0 && <Chip orange>{t('prCount', { count: latest.prCount })}</Chip>}
-            <Chip>
-              {formatNumber(latest.kudosCount, locale)} {t('kudos')}
-            </Chip>
-          </div>
+          {!short && (
+            <div style={{ display: 'flex', gap: '0.55em', margin: '1.1em 0 0 3.35em' }}>
+              {latest.prCount > 0 && <Chip orange>{t('prCount', { count: latest.prCount })}</Chip>}
+              <Chip>
+                {formatNumber(latest.kudosCount, locale)} {t('kudos')}
+              </Chip>
+            </div>
+          )}
         </div>
-        {config.showMap && latest.polyline && (
+        {!compact && config.showMap && latest.polyline && (
           <div
             style={{
               width: '14.3em',
@@ -154,11 +178,25 @@ export function DashboardView(props: ViewProps) {
         )}
       </div>
 
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '1.4em 0' }} />
+      <div
+        style={{
+          height: '1px',
+          background: 'rgba(255,255,255,0.08)',
+          margin: short ? '0.9em 0' : '1.4em 0',
+        }}
+      />
 
       {/* ── this week + goal/delta pane ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: '1.4em' }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+          }}
+        >
           <span
             style={{
               fontSize: '0.8em',
@@ -174,7 +212,8 @@ export function DashboardView(props: ViewProps) {
             style={{
               flex: 1,
               minHeight: '3.5em',
-              maxWidth: '30em',
+              // An empty week has no bars worth a tall chart — collapse it
+              maxHeight: maxDay > 0 ? '15em' : '3.5em',
               display: 'flex',
               gap: '1.15em',
               alignItems: 'flex-end',
@@ -230,21 +269,23 @@ export function DashboardView(props: ViewProps) {
           </div>
         </div>
 
-        <div
-          style={{
-            width: '15em',
-            flexShrink: 0,
-            borderLeft: '1px solid rgba(255,255,255,0.08)',
-            paddingLeft: '1.4em',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.55em',
-          }}
-        >
-          {goal ? <GoalPane {...props} /> : <DeltaPane {...props} />}
-        </div>
+        {!compact && (
+          <div
+            style={{
+              width: '15em',
+              flexShrink: 0,
+              borderLeft: '1px solid rgba(255,255,255,0.08)',
+              paddingLeft: '1.4em',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.55em',
+            }}
+          >
+            {goal ? <GoalPane {...props} /> : <DeltaPane {...props} />}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@
     "dev": "vite build && (vite build --watch & npx -y serve@latest . -l 5173 --cors --no-clipboard)",
     "build": "vite build",
     "test": "vitest run",
+    "test:layout": "vite-node scripts/layout-check.tsx",
     "typecheck": "tsc --noEmit",
     "audit:build": "vite build --config vite.audit.config.ts"
   },
@@ -14,10 +15,12 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.61.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
+    "vite-node": "^6.0.0",
     "vitest": "^4.1.9"
   }
 }

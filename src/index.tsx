@@ -23,6 +23,7 @@ import { fetchActivities, fetchAthlete, fetchAthleteStats, isAuthError, PLUGIN_I
 import { filterActivities, sortNewestFirst } from './aggregate';
 import { relativeTime } from './format';
 import { currentLocale, t } from './i18n';
+import { useModuleSize } from './size';
 import { ActivityIcon } from './icons';
 import {
   AthleteCardView,
@@ -115,9 +116,18 @@ function resolveUnits(setting: StravaConfig['units']): Units {
   }
 }
 
-function RootFrame({ style, children }: { style: ModuleStyle; children: React.ReactNode }) {
+function RootFrame({
+  style,
+  rootRef,
+  children,
+}: {
+  style: ModuleStyle;
+  rootRef: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}) {
   return (
     <div
+      ref={rootRef}
       style={{
         width: '100%',
         height: '100%',
@@ -141,7 +151,7 @@ function RootFrame({ style, children }: { style: ModuleStyle; children: React.Re
   );
 }
 
-function Header({ label, right }: { label: string; right?: string }) {
+export function Header({ label, right }: { label: string; right?: string }) {
   return (
     <div
       style={{
@@ -174,7 +184,7 @@ function Header({ label, right }: { label: string; right?: string }) {
 }
 
 /** Header label per view; month/year views get a dynamic title. */
-function headerLabel(view: StravaView, locale: string, now: Date): string {
+export function headerLabel(view: StravaView, locale: string, now: Date): string {
   if (view === 'month-calendar') {
     try {
       return new Intl.DateTimeFormat(locale, { month: 'long' }).format(now);
@@ -201,6 +211,7 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
   const [failed, setFailed] = React.useState(false);
   const [updatedAt, setUpdatedAt] = React.useState<Date | null>(null);
   const [now, setNow] = React.useState(() => new Date());
+  const { ref: rootRef, tier, width, height } = useModuleSize();
   // Set when a 401/403 flipped us to disconnected: the adapter may still
   // report "connected" (tokens exist but are rejected upstream), so delay the
   // next status check instead of re-entering a fetch/401 loop.
@@ -317,6 +328,9 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
       athlete,
       athleteStats,
       updatedAt,
+      tier,
+      width,
+      height,
     };
     switch (config.view) {
       case 'dashboard':
@@ -367,7 +381,7 @@ export default function StravaPlugin({ config: rawConfig, style }: PluginCompone
   }
 
   return (
-    <RootFrame style={style}>
+    <RootFrame style={style} rootRef={rootRef}>
       {config.showHeader && <Header label={headerLabel(config.view, locale, now)} right={headerRight} />}
       {body}
     </RootFrame>

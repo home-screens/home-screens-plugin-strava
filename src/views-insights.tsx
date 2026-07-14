@@ -29,6 +29,7 @@ import {
 import { addDays, monthCalendarGrid, periodBounds, startOfIsoWeek } from './date-ranges';
 import { ActivityIcon, HeartIcon, SportIcon } from './icons';
 import { t } from './i18n';
+import { typeScale } from './size';
 import { CenterMessage, STRAVA_ORANGE, Stat, type ViewProps } from './views';
 
 // ─── Training volume ─────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ export function volumeUnit(metric: 'distance' | 'movingTime', units: 'metric' | 
   return units === 'imperial' ? 'mi' : 'km';
 }
 
-export function TrainingVolumeView({ rows, config, units, locale, now }: ViewProps) {
+export function TrainingVolumeView({ rows, config, units, locale, now, width, height }: ViewProps) {
   const weeks = weeklyTotals(rows, VOLUME_WEEKS, now);
   const metric = config.volumeMetric;
   const toValue = (totals: PeriodTotals) =>
@@ -75,7 +76,15 @@ export function TrainingVolumeView({ rows, config, units, locale, now }: ViewPro
   });
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        fontSize: `${typeScale(width, height, 620, 520, 1.4)}em`,
+      }}
+    >
       <div style={{ flex: 1, minHeight: 0, position: 'relative', marginTop: '1.4em' }}>
         {max > 0 && avg > 0 && (
           <div
@@ -182,7 +191,17 @@ export function TrainingVolumeView({ rows, config, units, locale, now }: ViewPro
 
 function PosterCell({ value, extra, label }: { value: string; extra?: string; label: string }) {
   return (
-    <div style={{ background: 'rgba(255,255,255,0.045)', padding: '1em 1.15em' }}>
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.045)',
+        padding: '1em 1.15em',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        textAlign: 'center',
+      }}
+    >
       <div style={{ fontSize: '1.55em', fontWeight: 700, whiteSpace: 'nowrap' }}>
         {value}
         {extra && (
@@ -209,7 +228,7 @@ function PosterCell({ value, extra, label }: { value: string; extra?: string; la
   );
 }
 
-export function YearPosterView({ rows, units, locale, now }: ViewProps) {
+export function YearPosterView({ rows, units, locale, now, width, height }: ViewProps) {
   const { start, end } = periodBounds('year', now);
   const totals = totalsForRange(rows, start, end);
   if (totals.count === 0) return <CenterMessage body={t('noActivities')} />;
@@ -224,7 +243,15 @@ export function YearPosterView({ rows, units, locale, now }: ViewProps) {
   const everests = everestCount(totals.elevation);
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        fontSize: `${typeScale(width, height, 560, 500, 1.7)}em`,
+      }}
+    >
       <div style={{ margin: '0.4em 0 0.3em' }}>
         <div style={{ fontSize: '4em', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
           {formatNumber(distValue, locale)}{' '}
@@ -291,7 +318,7 @@ function recordEntry(
   return { icon, label, name: truncate(row.name, 40), value, date: shortDate(row.startDateLocal, locale) };
 }
 
-export function RecordsView({ rows, units, locale }: ViewProps) {
+export function RecordsView({ rows, units, locale, width, height }: ViewProps) {
   const rec = activityRecords(rows);
   const entries: RecordEntry[] = [];
   if (rec.longestRide) {
@@ -363,6 +390,7 @@ export function RecordsView({ rows, units, locale }: ViewProps) {
         flexDirection: 'column',
         justifyContent: 'space-evenly',
         overflow: 'hidden',
+        fontSize: `${typeScale(width, height, 560, entries.length * 120 + 60, 1.8)}em`,
       }}
     >
       {entries.map((entry, i) => (
@@ -438,7 +466,7 @@ const CAL_TIER_BG = [
   'rgba(252,76,2,0.78)',
 ];
 
-export function MonthCalendarView({ rows, config, units, locale, now }: ViewProps) {
+export function MonthCalendarView({ rows, config, units, locale, now, width, height }: ViewProps) {
   const grid = monthCalendarGrid(now);
   const buckets = bucketByDay(rows);
   let max = 0;
@@ -466,7 +494,15 @@ export function MonthCalendarView({ rows, config, units, locale, now }: ViewProp
   });
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        fontSize: `${typeScale(width, height, 560, 500, 1.5)}em`,
+      }}
+    >
       <div
         style={{
           display: 'grid',

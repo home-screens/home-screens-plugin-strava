@@ -148,7 +148,9 @@ describe('views', () => {
   it('renders the heatmap grid with the empty overlay when no activities', async () => {
     stubSdk({ pluginFetch: async () => jsonResponse([]) });
     const el = await mount({ view: 'heatmap' });
-    expect(el.querySelectorAll('rect').length).toBeGreaterThan(300);
+    // Adaptive grid: at the jsdom fallback size (520x640) the heatmap shows
+    // 8 weeks of 7 days, minus any future days in the current week.
+    expect(el.querySelectorAll('rect').length).toBeGreaterThan(40);
     expect(el.textContent).toContain('No activities yet');
   });
 
