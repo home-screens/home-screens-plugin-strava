@@ -260,6 +260,17 @@ export function streaks(rows: ActivityRow[], now: Date): Streaks {
   return { current, longest };
 }
 
+/** Local-calendar days since the most recent activity, or null when there
+ *  are no activities to measure from. */
+export function daysSinceLastActivity(rows: ActivityRow[], now: Date): number | null {
+  if (rows.length === 0) return null;
+  const key = dayKeyFromIso(sortNewestFirst(rows)[0].startDateLocal);
+  const [y, m, d] = key.split('-').map(Number);
+  const lastDay = new Date(y, m - 1, d);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today.getTime() - lastDay.getTime()) / 86_400_000);
+}
+
 /** Distinct active local days within [start, end). */
 export function activeDays(rows: ActivityRow[], start: Date, end: Date): number {
   const days = new Set<string>();

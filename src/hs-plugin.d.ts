@@ -44,3 +44,16 @@ export interface PluginConfigSectionProps {
 
 /** Declared plugin capabilities — transparency for users, not runtime-enforced */
 export type PluginPermission = 'network' | 'secrets' | 'events' | 'storage';
+
+/** Props the host passes to a plugin's `stateProvider` component (manifest
+ *  `exports.stateProvider`). Rendered once, mounted for the lifetime of the
+ *  display tab regardless of screen rotation. `demandedKeys` arrive
+ *  UNPREFIXED (the part after `plugin:<id>:`), matching what the plugin
+ *  passes to `publishState`/`clearState`; deduped, sorted, and referentially
+ *  stable across renders when unchanged. May be empty — the provider must
+ *  stay mounted and idle, not poll. */
+export interface StateProviderProps {
+  demandedKeys: string[];
+  /** Plugin-level settings (manifest `settingsSchema` values, if declared). */
+  settings: Record<string, unknown>;
+}

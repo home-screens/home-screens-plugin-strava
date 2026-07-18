@@ -5,7 +5,7 @@
   "description": "Show your Strava life on the wall: recent activities, weekly and yearly stat tiles, goal rings, a 52-week training heatmap, a map of everywhere you go, gear mileage, segment PRs, your Eddington number, and more. Strava Subscription Required: Strava only lets subscribers create the free API app this plugin connects through, so you need an active Strava subscription to set it up.",
   "author": "home-screens",
   "license": "MIT",
-  "minAppVersion": "1.7.0",
+  "minAppVersion": "1.8.0",
   "moduleType": "strava",
   "category": "Health & Fitness",
   "icon": "Activity",
@@ -220,7 +220,15 @@
       }
     }
   },
-  "exports": { "component": "default" },
+  "providesState": [
+    { "key": "last_activity_type", "label": "Last activity type", "sampleValues": ["Run", "Ride"] },
+    { "key": "last_activity_date", "label": "Last activity date", "sampleValues": ["2026-07-17"] },
+    { "key": "current_streak", "label": "Current activity streak (days)", "sampleValues": ["3", "0"] },
+    { "key": "days_since_last_activity", "label": "Days since last activity", "sampleValues": ["0", "4"] },
+    { "key": "eddington_number", "label": "Eddington number", "sampleValues": ["34"] }
+  ],
+
+  "exports": { "component": "default", "stateProvider": "StateProvider" },
   "dataRequirements": [],
   "prefetchUrl": null,
   "translations": {

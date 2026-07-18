@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { activeDays, activityRecords, kudosForRange, streaks, weeklyTotals } from './aggregate';
+import {
+  activeDays, activityRecords, daysSinceLastActivity, kudosForRange, streaks, weeklyTotals,
+} from './aggregate';
 import { monthCalendarGrid } from './date-ranges';
 import { everestCount, marathonCount, shortDayLabel } from './format';
 import type { ActivityRow } from './types';
@@ -102,6 +104,22 @@ describe('streaks', () => {
     const s = streaks(rows, NOW);
     expect(s.longest).toBe(4);
     expect(s.current).toBe(1);
+  });
+});
+
+describe('daysSinceLastActivity', () => {
+  it('returns 0 for an activity today', () => {
+    const rows = [row({ startDateLocal: '2025-06-05T07:00:00Z' })];
+    expect(daysSinceLastActivity(rows, NOW)).toBe(0);
+  });
+  it('counts local-calendar days back to the most recent activity', () => {
+    const rows = ['2025-06-01', '2025-06-03'].map((d) =>
+      row({ startDate: `${d}T12:00:00Z`, startDateLocal: `${d}T07:00:00Z` }),
+    );
+    expect(daysSinceLastActivity(rows, NOW)).toBe(2);
+  });
+  it('returns null when there are no activities', () => {
+    expect(daysSinceLastActivity([], NOW)).toBeNull();
   });
 });
 

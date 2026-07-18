@@ -8,7 +8,7 @@ Read-only, one athlete, refreshed every 10 minutes.
 
 You'll need three things:
 
-1. **Home Screens 1.7.0 or newer** on your hub.
+1. **Home Screens 1.8.0 or newer** on your hub.
 2. **A Strava account with an active Strava subscription.** Strava requires a subscription to create the free API application this plugin connects through. Without a subscription, the connection cannot be set up — this is Strava's rule, not ours.
 3. **Your own Strava API application** (free to create, takes two minutes — see below).
 
@@ -71,6 +71,10 @@ Your Strava sign-in happens on strava.com — this plugin never sees your passwo
 | **Goals** | For the Goal progress view: each goal has a measure (distance, time, or climbing), a period (this week or this year), and a target. Targets use natural units: distance in km or miles, time in hours, climbing in meters or feet. |
 | **Color squares by** | What drives the heatmap colors: activity count, distance, or time |
 | **Show route map** | Show or hide the route drawing on the Latest activity view (indoor activities never have one) |
+
+## Shared state
+
+The plugin publishes five keys other modules can show or hide themselves based on: `plugin:strava:last_activity_type`, `plugin:strava:last_activity_date`, `plugin:strava:current_streak`, `plugin:strava:days_since_last_activity`, and `plugin:strava:eddington_number`. A key starts publishing as soon as any condition or rule references it — you don't need to add a Strava module to the screen, and it keeps publishing even while your Strava module is rotated off-screen. Goal progress and gear mileage aren't published; they depend on settings configured per module instance, which the shared-state bus doesn't have a way to read.
 
 ## Disconnecting
 
