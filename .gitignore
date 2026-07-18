@@ -4,3 +4,5 @@ dist/
 *.local
 audit-dist/
 scripts/.shots/
+scripts/.shots-marketing/
+.claude/
