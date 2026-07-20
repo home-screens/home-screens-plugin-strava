@@ -1,6 +1,6 @@
 {
   "name": "hs-plugin-strava",
-  "version": "1.2.0-beta.1",
+  "version": "1.2.0-beta.2",
   "description": "Strava plugin for Home Screens",
   "license": "MIT",
   "scripts": {

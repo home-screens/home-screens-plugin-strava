@@ -69,6 +69,12 @@ import {
 import { GearView, MilestonesView, SegmentPrsView } from './views-athlete';
 import { FitnessView, YearCompareView } from './views-trends';
 
+// Re-exported so Vite's lib-mode bundle (entry: src/index.tsx) actually
+// includes it — manifest.json's exports.stateProvider names this export,
+// but nothing reaches it from the entry point otherwise, so it gets
+// tree-shaken out even though it's mounted, tested, and correct.
+export { StateProvider } from './state-provider';
+
 const REFRESH_MS = 600_000;
 const AUTH_RECHECK_MS = 60_000;
 /** Detail requests per photo-wall refresh; keeps the rate-limit cost bounded. */
