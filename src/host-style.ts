@@ -6,7 +6,7 @@
 // editor's Style panel — only takes effect if the plugin implements it. A
 // field you don't read is a control that silently does nothing for the user.
 //
-// Two of those fields are easy to get wrong, which is why this is a shared
+// Three of those fields are easy to get wrong, which is why this is a shared
 // helper rather than an inline style object:
 //
 //   Border and shadow. `borderWidth` / `borderColor` / `shadowSize` were
@@ -34,6 +34,7 @@
 // entirely — a module sized to fill a quarter of a 4K screen will still draw
 // 12px labels. Author dimensions in `em` wherever you can.
 
+import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 
 /** The host's `ModuleStyle`, declared here rather than imported so this file
@@ -126,26 +127,32 @@ export function resolveColor(input: string): string | null {
   const cached = resolved.get(input);
   if (cached !== undefined) return cached;
 
+  // No DOM to ask yet. Fall back WITHOUT caching: a null here means "nobody
+  // could answer", not "not a color". Caching it would pin the fallback for
+  // the page's lifetime when the only problem was that `document.body` hadn't
+  // mounted at the moment this color was first seen.
+  if (typeof document === 'undefined' || !document.body) return null;
+
   let out: string | null = null;
-  if (typeof document !== 'undefined' && document.body) {
-    const probe = document.createElement('div');
-    probe.style.color = input;
-    // An invalid value leaves the property untouched; without this check the
-    // computed style below would hand back the inherited color and turn
-    // gibberish into whatever the page happens to be using.
-    if (probe.style.color !== '') {
-      // A detached element has no computed style, so the probe has to be in
-      // the document. `display: none` keeps it out of layout.
-      probe.style.display = 'none';
-      document.body.appendChild(probe);
-      try {
-        const computed = getComputedStyle(probe).color;
-        out = parseRgba(computed) ? computed : null;
-      } finally {
-        probe.remove();
-      }
+  const probe = document.createElement('div');
+  probe.style.color = input;
+  // An invalid value leaves the property untouched; without this check the
+  // computed style below would hand back the inherited color and turn
+  // gibberish into whatever the page happens to be using.
+  if (probe.style.color !== '') {
+    // A detached element has no computed style, so the probe has to be in
+    // the document. `display: none` keeps it out of layout.
+    probe.style.display = 'none';
+    document.body.appendChild(probe);
+    try {
+      const computed = getComputedStyle(probe).color;
+      out = parseRgba(computed) ? computed : null;
+    } finally {
+      probe.remove();
     }
   }
+  // A probe ran, so this answer is final either way — an unreadable string is
+  // not going to become readable later.
   resolved.set(input, out);
   return out;
 }
@@ -249,7 +256,11 @@ export function scalePx(n: number): string {
 }
 
 /** Every `ModuleStyle` field, applied the way the host applies it to
- *  built-in modules. Spread onto your root element, then add your layout. */
+ *  built-in modules. Spread onto your root element, then add your layout.
+ *
+ *  Resolving an exotic background color can touch the DOM (see
+ *  `resolveColor`), so call this from a `useMemo` keyed on `style` rather
+ *  than bare in a component body — see `useHostFrameStyle`. */
 export function hostFrameStyle(
   style: HostModuleStyle,
   options: HostFrameOptions = {},
@@ -292,4 +303,20 @@ export function hostFrameStyle(
     backdropFilter: hasBlur ? `blur(${blur}px)` : undefined,
     WebkitBackdropFilter: hasBlur ? `blur(${blur}px)` : undefined,
   };
+}
+
+/** `hostFrameStyle`, recomputed only when the style actually changes.
+ *
+ *  The host re-renders modules on a tick, and a bare call in a component body
+ *  reruns the whole frame — including `resolveColor`'s DOM probe on a cold
+ *  cache — on every one of them. Prefer this in components. */
+export function useHostFrameStyle(
+  style: HostModuleStyle,
+  options: HostFrameOptions = {},
+): CSSProperties {
+  const baseFontSize = options.baseFontSize;
+  return useMemo(
+    () => hostFrameStyle(style, { baseFontSize }),
+    [style, baseFontSize],
+  );
 }

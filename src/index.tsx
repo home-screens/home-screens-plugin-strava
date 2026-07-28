@@ -10,7 +10,7 @@
 
 import React from 'react';
 import type { ModuleStyle, PluginComponentProps } from './hs-plugin';
-import { hostFrameStyle } from './host-style';
+import { useHostFrameStyle } from './host-style';
 import { ThemeProvider } from './theme';
 import type {
   ActivityDetail,
@@ -172,14 +172,15 @@ function RootFrame({
   rootRef: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }) {
+  // Every px dimension in these views was authored against the manifest's
+  // defaultStyle.fontSize, so that is what `--u` measures the host's Text
+  // size against.
+  const frame = useHostFrameStyle(style, { baseFontSize: DEFAULT_FONT_SIZE });
   return (
     <div
       ref={rootRef}
       style={{
-        // Every px dimension in these views was authored against the
-        // manifest's defaultStyle.fontSize, so that is what `--u` measures
-        // the host's Text size against.
-        ...hostFrameStyle(style, { baseFontSize: DEFAULT_FONT_SIZE }),
+        ...frame,
         display: 'flex',
         flexDirection: 'column',
       }}

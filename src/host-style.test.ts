@@ -4,9 +4,32 @@
 import { describe, it, expect } from 'vitest';
 import {
   hostFrameStyle, colorWithAlpha, moduleShadow, parseColor, parseRgba,
-  resolveFontStack, scalePx,
+  resolveColor, resolveFontStack, scalePx,
 } from './host-style';
 import type { HostModuleStyle } from './host-style';
+
+/** The narrowest `document` `resolveColor`'s probe needs. Tests run in node,
+ *  so there is no DOM until one is put there — which is exactly the situation
+ *  the caching rule has to get right. Returns how many probes were made. */
+function withFakeDom(computedColor: string, run: () => void): number {
+  let probes = 0;
+  const g = globalThis as Record<string, unknown>;
+  g.document = {
+    body: { appendChild: () => {} },
+    createElement: () => {
+      probes += 1;
+      return { style: { color: '', display: '' }, remove: () => {} };
+    },
+  };
+  g.getComputedStyle = () => ({ color: computedColor });
+  try {
+    run();
+  } finally {
+    delete g.document;
+    delete g.getComputedStyle;
+  }
+  return probes;
+}
 
 const BASE: HostModuleStyle = {
   fontSize: 16,
@@ -177,6 +200,7 @@ describe('parseRgba', () => {
   it('defaults to fully opaque when no alpha is given', () => {
     expect(parseRgba('#fff')).toEqual([255, 255, 255, 1]);
     expect(parseRgba('rgb(1, 2, 3)')).toEqual([1, 2, 3, 1]);
+    expect(parseRgba('rgb(10 20 30)')).toEqual([10, 20, 30, 1]);
   });
 
   it('reads percentage channels as percentages, not as 0-255', () => {
@@ -191,6 +215,52 @@ describe('parseRgba', () => {
     expect(parseRgba('rgba(1, 2, 3, 4, 5)')).toBeNull();
     expect(parseRgba('rgba(1, 2, 3, 2)')).toBeNull();
     expect(parseRgba('rgb(300, 0, 0)')).toBeNull();
+    // Trailing junk must not be ignored by an unanchored match.
+    expect(parseRgba('rgb(10, 20, 30) drop shadow')).toBeNull();
+  });
+});
+
+describe('resolveColor', () => {
+  // The cache exists because the host re-renders on a tick. What it must not
+  // cache is a fallback taken when there was no DOM to ask in the first place
+  // — a plugin evaluated before <body> mounts would otherwise render every
+  // later frame against a null it can never revisit.
+  it('does not cache the fallback it returns before a DOM exists', () => {
+    const COLOR = 'rebeccapurple';
+    // Phase 1: no document, so nothing can answer.
+    expect(resolveColor(COLOR)).toBeNull();
+    // Phase 2: the same string, now that the browser can be asked.
+    withFakeDom('rgb(102, 51, 153)', () => {
+      expect(resolveColor(COLOR)).toBe('rgb(102, 51, 153)');
+    });
+  });
+
+  it('caches the answer once a probe has actually run', () => {
+    const COLOR = 'papayawhip';
+    const first = withFakeDom('rgb(255, 239, 213)', () => {
+      expect(resolveColor(COLOR)).toBe('rgb(255, 239, 213)');
+    });
+    expect(first).toBe(1);
+    // A second pass must not touch the DOM again, and must not change answer
+    // even though this fake would now report something else.
+    const second = withFakeDom('rgb(0, 0, 0)', () => {
+      expect(resolveColor(COLOR)).toBe('rgb(255, 239, 213)');
+    });
+    expect(second).toBe(0);
+  });
+
+  it('caches a definitive "not a color" — a probe ran and settled it', () => {
+    const NONSENSE = 'not-a-color-at-all';
+    // The fake leaves `style.color` empty for anything, standing in for the
+    // browser rejecting the value outright.
+    const first = withFakeDom('', () => {
+      expect(resolveColor(NONSENSE)).toBeNull();
+    });
+    expect(first).toBe(1);
+    const second = withFakeDom('', () => {
+      expect(resolveColor(NONSENSE)).toBeNull();
+    });
+    expect(second).toBe(0);
   });
 });
 
