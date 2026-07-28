@@ -22,6 +22,7 @@ import type {
   StravaConfig,
 } from '../src/types';
 import { filterActivities, sortNewestFirst } from '../src/aggregate';
+import { parseLocalIso } from '../src/date-ranges';
 import { relativeTime } from '../src/format';
 import { t } from '../src/i18n';
 import { Header, headerLabel } from '../src/index';
@@ -280,16 +281,39 @@ const BASE_CONFIG: StravaConfig = {
 // screenshotted at 2x. Everything above this section is sliced verbatim
 // from layout-check.tsx.
 //
-// The whole fixture timeline is shifted +5 days so "now" lands on the
-// Saturday of a full training week — a calendar week that starts today
-// would render empty bars and a BEHIND goal ring.
+// The whole fixture timeline is shifted so "now" lands on the Saturday at
+// the end of a full training week — a calendar week that starts today would
+// render empty bars and a BEHIND goal ring. Computed from today's weekday so
+// the shots stay camera-ready no matter when they're captured.
 
 const W = 640;
 const H = 420;
 const MPAD = 16;
 
-const SHIFT = 5 * DAY;
-const MNOW = new Date(NOW.getTime() + SHIFT);
+// "Now" is pinned to 20:30 on the most recent Saturday — the one already
+// behind us, never the one ahead. An upcoming Saturday can fall in next
+// month, which leaves the month calendar showing a nearly empty grid and a
+// "1 ACTIVE DAYS" footer for the last week of every month.
+//
+// Landing in the first few days of a month has the same problem in
+// miniature, so a Saturday that early steps back another week into the
+// month that does have a full set of activities.
+//
+// The hour is after the day's last fixture activity (18:30) in every
+// timezone, so "latest activity" never reads as being in the future.
+const MNOW = new Date(NOW);
+MNOW.setDate(MNOW.getDate() - ((MNOW.getDay() + 1) % 7));
+if (MNOW.getDate() < 8) MNOW.setDate(MNOW.getDate() - 7);
+MNOW.setHours(20, 30, 0, 0);
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+const targetDate = `${MNOW.getFullYear()}-${pad2(MNOW.getMonth() + 1)}-${pad2(MNOW.getDate())}`;
+// A whole number of days, moving the fixture's day-0 date onto MNOW's date.
+// The fixture's ISO dates come from NOW's UTC date, which in the evening is
+// already tomorrow locally — so the source end is the UTC date too, or every
+// activity lands a day off and the calendar's "today" cell renders empty.
+const SHIFT =
+  Date.parse(`${targetDate}T00:00:00Z`) -
+  Date.parse(`${NOW.toISOString().slice(0, 10)}T00:00:00Z`);
 const shiftIso = (s: string): string =>
   new Date(Date.parse(s) + SHIFT).toISOString().replace('.000Z', 'Z');
 
@@ -435,52 +459,172 @@ function routeFor(r: ActivityRow): string | undefined {
   return gridRoute(r.id, r.distance);
 }
 
-const shotRows = sortNewestFirst(filterActivities(rows, 'all')).map((r) => ({
-  ...r,
-  startDate: shiftIso(r.startDate),
-  startDateLocal: shiftIso(r.startDateLocal),
-  polyline: routeFor(r),
+// Marketing-only prior-year rows: the shared fixture spans 364 days, which
+// leaves the year-compare view's "last year" line at zero. Extend the
+// timeline a second year back so the comparison actually compares.
+const priorYearRows: ActivityRow[] = [];
+for (let back = 365; back < 720; back += 3) {
+  const spec = SPORTS[back % SPORTS.length];
+  priorYearRows.push(makeActivity(5_000 + back, back, spec, 0.55 + ((back % 6) * 0.08)));
+}
+
+// `startDateLocal` is a wall clock the views read component-by-component, so
+// the shift keeps its digits. `startDate` is a real instant compared against
+// MNOW, so it has to be that same wall clock converted out of the local zone
+// — carrying the fixture's Z through would put the evening activity hours
+// ahead of MNOW anywhere east of about UTC+2, and "3 hours ago" would render
+// as a time in the future.
+const shotRows = sortNewestFirst(filterActivities([...rows, ...priorYearRows], 'all')).map((r) => {
+  const startDateLocal = shiftIso(r.startDateLocal);
+  return {
+    ...r,
+    startDate: parseLocalIso(startDateLocal).toISOString(),
+    startDateLocal,
+    polyline: routeFor(r),
+  };
+});
+// The dashboard hero thumbnail is the newest activity — force a tidy WIDE
+// loop. The hero map matches the route's aspect, so a portrait-shaped route
+// makes the panel tall enough to push the week strip out of the box.
+shotRows[0] = {
+  ...shotRows[0],
+  polyline: encodePolyline(
+    walkLegs([[3, 0], [0, 2], [5, 0], [0, -3], [-5, 0], [0, 1], [-3, 0]]),
+  ),
+};
+
+// ── Camera-ready imagery ────────────────────────────────────────────
+// The layout harness uses a transparent PNG (and hides <img> outright)
+// because it only measures boxes. Marketing shots need the photo wall and
+// hero to look like photos, so these are scenic SVG data URIs: gradient
+// sky, sun, and two mountain ridges, deterministic per seed.
+
+function scenicPhoto(seed: number): string {
+  const palettes = [
+    ['#1e3a8a', '#7dd3fc', '#0f172a', '#1e293b'], // alpine dawn
+    ['#7c2d12', '#fdba74', '#1c0a04', '#431407'], // desert sunset
+    ['#14532d', '#86efac', '#052012', '#14532d'], // forest morning
+    ['#312e81', '#d8b4fe', '#140e2e', '#2e1065'], // dusk ride
+    ['#0c4a6e', '#a5f3fc', '#082033', '#164e63'], // lake start
+  ];
+  const [top, glow, farRidge, nearRidge] = palettes[seed % palettes.length];
+  const r = seededRand(seed * 13 + 7);
+  const ridge = (base: number, amp: number): string =>
+    Array.from({ length: 6 }, (_, i) => `${i * 20},${base - Math.round(r() * amp)}`).join(' ');
+  const sunX = 18 + Math.round(r() * 64);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 70">` +
+    `<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${glow}"/>` +
+    `</linearGradient></defs>` +
+    `<rect width="100" height="70" fill="url(#s)"/>` +
+    `<circle cx="${sunX}" cy="${14 + Math.round(r() * 10)}" r="6.5" fill="#fff7ed" opacity="0.9"/>` +
+    `<polygon points="0,70 ${ridge(46, 18)} 100,70" fill="${farRidge}" opacity="0.75"/>` +
+    `<polygon points="0,70 ${ridge(58, 14)} 100,70" fill="${nearRidge}"/>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const AVATAR =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
+      `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+      `<stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#dc2626"/>` +
+      `</linearGradient></defs>` +
+      `<rect width="64" height="64" fill="url(#g)"/>` +
+      `<text x="32" y="41" text-anchor="middle" font-family="-apple-system,'Segoe UI',sans-serif" ` +
+      `font-size="24" font-weight="700" fill="#fff">BB</text></svg>`,
+  );
+
+const ATHLETE_M: AthleteProfile = { ...ATHLETE, profile: AVATAR };
+const PHOTO_NAMES = [
+  'Sunrise over the ridge', 'Gravel miles', 'Summit break', 'River path',
+  'Golden hour spin', 'Trailhead', 'Post-race', 'Canyon overlook',
+  'Group ride', 'Cooldown lap',
+];
+const PHOTOS_M: PhotoItem[] = PHOTOS.map((p, i) => ({
+  ...p,
+  url: scenicPhoto(i),
+  name: PHOTO_NAMES[i % PHOTO_NAMES.length],
+  startDateLocal: shiftIso(p.startDateLocal),
 }));
-// The dashboard hero thumbnail is the newest activity — force a tidy loop.
-shotRows[0] = { ...shotRows[0], polyline: gridRoute(shotRows[0].id, shotRows[0].distance, true) };
 
 interface ShotCase {
   name: string;
   view: StravaConfig['view'];
   component: React.ComponentType<ViewProps>;
   config?: Partial<StravaConfig>;
+  /** Attach the detailed-activity extras (latest-hero enrichment) */
+  withDetail?: boolean;
+  /** Override the default shot box (views that need a taller/wider stage) */
+  w?: number;
+  h?: number;
 }
 const SHOTS: ShotCase[] = [
-  { name: 'dashboard', view: 'dashboard', component: DashboardView,
+  // The dashboard's hero + THIS WEEK strip needs the 976×660 validated size;
+  // at 640×420 the week strip clips off the bottom of the box.
+  { name: 'dashboard', view: 'dashboard', component: DashboardView, w: 976, h: 660,
     config: { goals: [{ metric: 'distance', period: 'week', target: 40 }] } },
+  { name: 'latest-hero', view: 'latest-hero', component: LatestHeroView, withDetail: true },
   { name: 'recent-activities', view: 'recent-activities', component: RecentActivitiesView },
-  { name: 'route-map', view: 'route-map', component: RouteMapView },
-  { name: 'training-volume', view: 'training-volume', component: TrainingVolumeView },
-  { name: 'year-poster', view: 'year-poster', component: YearPosterView },
+  { name: 'stats-tiles', view: 'stats-tiles', component: StatsTilesView },
   { name: 'goal-progress', view: 'goal-progress', component: GoalProgressView,
     config: { goals: [
       { metric: 'distance', period: 'week', target: 40 },
       { metric: 'movingTime', period: 'year', target: 160 },
     ] } },
+  { name: 'training-volume', view: 'training-volume', component: TrainingVolumeView },
+  // 52 weeks × 7 days wants a wide, short stage — the band letterboxes
+  // inside the standard box. Height is the one that makes the grid fill it:
+  // at 976 wide the cell pitch is capped by width at ~17.8px, so seven rows
+  // plus the month band come to ~140px, and anything taller is dead space.
+  { name: 'heatmap', view: 'heatmap', component: HeatmapView, w: 976, h: 224 },
+  { name: 'month-calendar', view: 'month-calendar', component: MonthCalendarView },
+  { name: 'year-poster', view: 'year-poster', component: YearPosterView },
+  { name: 'year-compare', view: 'year-compare', component: YearCompareView },
+  { name: 'fitness', view: 'fitness', component: FitnessView },
+  { name: 'route-map', view: 'route-map', component: RouteMapView },
+  { name: 'route-gallery', view: 'route-gallery', component: RouteGalleryView },
+  { name: 'planned-routes', view: 'planned-routes', component: PlannedRoutesView },
+  { name: 'photos', view: 'photos', component: PhotoWallView },
+  { name: 'records', view: 'records', component: RecordsView },
+  { name: 'milestones', view: 'milestones', component: MilestonesView },
+  { name: 'eddington', view: 'eddington', component: EddingtonView },
+  { name: 'training-times', view: 'training-times', component: TrainingTimesView },
+  { name: 'segment-prs', view: 'segment-prs', component: SegmentPrsView },
+  { name: 'gear', view: 'gear', component: GearView },
+  { name: 'athlete-card', view: 'athlete-card', component: AthleteCardView },
 ];
 
 let shotBoxes = '';
 for (const c of SHOTS) {
   const config: StravaConfig = { ...BASE_CONFIG, ...c.config, view: c.view };
-  const cw = W - MPAD * 2;
-  const ch = H - MPAD * 2;
+  const bw = c.w ?? W;
+  const bh = c.h ?? H;
+  const cw = bw - MPAD * 2;
+  const ch = bh - MPAD * 2;
   const props: ViewProps = {
     rows: shotRows,
     config,
     units: 'imperial',
     locale: 'en-US',
     now: MNOW,
-    athlete: ATHLETE,
+    athlete: ATHLETE_M,
     athleteStats: ATHLETE_STATS,
     segments: SEGMENTS,
     routes: PLANNED_ROUTES,
-    photos: PHOTOS,
-    latestDetail: null,
+    photos: PHOTOS_M,
+    latestDetail: c.withDetail
+      ? {
+          ...LATEST_DETAIL_BASE,
+          // The newest fixture activity is a run — bike gear would read wrong.
+          gearName: 'Saucony Endorphin Speed 4',
+          calories: 486,
+          photoUrl: scenicPhoto(2),
+          id: shotRows[0].id,
+        }
+      : null,
     updatedAt: new Date(MNOW.getTime() - 300_000),
     tier: tierFor(cw, ch),
     width: cw,
@@ -503,7 +647,7 @@ for (const c of SHOTS) {
     ),
   );
   shotBoxes += `
-    <div class="module" data-view="${c.name}" style="width:${W}px;height:${H}px">${body}</div>`;
+    <div class="module" data-view="${c.name}" style="width:${bw}px;height:${bh}px">${body}</div>`;
 }
 
 const shotHtml = `<!doctype html><meta charset="utf-8"><style>
@@ -516,7 +660,6 @@ const shotHtml = `<!doctype html><meta charset="utf-8"><style>
     padding: ${MPAD}px; box-sizing: border-box; overflow: hidden;
     color: #f1f5f9; font-size: 16px; flex-shrink: 0;
     display: flex; flex-direction: column; }
-  img { visibility: hidden; }
 </style>${shotBoxes}`;
 
 const shotDir = join(import.meta.dirname, '.shots-marketing');
@@ -524,9 +667,11 @@ mkdirSync(shotDir, { recursive: true });
 const shotPage = join(shotDir, 'harness.html');
 writeFileSync(shotPage, shotHtml);
 
+const maxW = Math.max(W, ...SHOTS.map((c) => c.w ?? W));
+const maxH = Math.max(H, ...SHOTS.map((c) => c.h ?? H));
 const shotBrowser = await chromium.launch();
 const shotTab = await shotBrowser.newPage({
-  viewport: { width: W + 60, height: H + 60 },
+  viewport: { width: maxW + 60, height: maxH + 60 },
   deviceScaleFactor: 2,
 });
 await shotTab.goto(`file://${shotPage}`);
