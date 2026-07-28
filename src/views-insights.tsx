@@ -36,6 +36,7 @@ import { ActivityIcon, HeartIcon, MountainIcon, SportIcon } from './icons';
 import { t } from './i18n';
 import { typeScale } from './size';
 import { CenterMessage, STRAVA_ORANGE, Stat, type ViewProps } from './views';
+import { useTheme, type Theme } from './theme';
 
 // ─── Training volume ─────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export function volumeUnit(metric: 'distance' | 'movingTime', units: 'metric' | 
 }
 
 export function TrainingVolumeView({ rows, config, units, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   const weeks = weeklyTotals(rows, VOLUME_WEEKS, now);
   const metric = config.volumeMetric;
   const toValue = (totals: PeriodTotals) =>
@@ -98,7 +100,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
               left: 0,
               right: 0,
               top: `${(1 - avg / max) * 100}%`,
-              borderTop: '1px dashed rgba(255,255,255,0.4)',
+              borderTop: `1px dashed ${hue.fg(0.4)}`,
               zIndex: 1,
             }}
           >
@@ -108,7 +110,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
                 left: 0,
                 top: '-1.5em',
                 fontSize: '0.7em',
-                color: 'rgba(255,255,255,0.55)',
+                color: hue.fg(0.55),
               }}
             >
               {t('fourWeekAvg', { value: fmt(avg) })}
@@ -135,7 +137,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
                   height: max > 0 ? `${Math.max((v / max) * 100, 1)}%` : '1%',
                   minHeight: '3px',
                   borderRadius: '4px 4px 2px 2px',
-                  background: isCur ? STRAVA_ORANGE : 'rgba(255,255,255,0.22)',
+                  background: isCur ? STRAVA_ORANGE : hue.fg(0.22),
                 }}
               >
                 {showLabel && (
@@ -148,7 +150,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
                       fontSize: '0.75em',
                       fontWeight: 700,
                       whiteSpace: 'nowrap',
-                      color: isCur ? '#ff9868' : 'rgba(255,255,255,0.78)',
+                      color: isCur ? '#ff9868' : hue.fg(0.78),
                     }}
                   >
                     {fmt(v)}
@@ -166,7 +168,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
             style={{
               flex: 1,
               fontSize: '0.7em',
-              color: 'rgba(255,255,255,0.35)',
+              color: hue.fg(0.35),
               textAlign: 'center',
               whiteSpace: 'nowrap',
             }}
@@ -181,7 +183,7 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
           gap: '1.7em',
           marginTop: '1.15em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
           flexShrink: 0,
         }}
       >
@@ -195,10 +197,11 @@ export function TrainingVolumeView({ rows, config, units, locale, now, width, he
 // ─── Year poster ─────────────────────────────────────────────────────────────
 
 function PosterCell({ value, extra, label }: { value: string; extra?: string; label: string }) {
+  const hue = useTheme();
   return (
     <div
       style={{
-        background: 'rgba(255,255,255,0.045)',
+        background: hue.fg(0.045),
         padding: '1em 1.15em',
         display: 'flex',
         flexDirection: 'column',
@@ -223,7 +226,7 @@ function PosterCell({ value, extra, label }: { value: string; extra?: string; la
           fontWeight: 500,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          color: 'rgba(255,255,255,0.55)',
+          color: hue.fg(0.55),
           marginTop: '0.15em',
         }}
       >
@@ -234,6 +237,7 @@ function PosterCell({ value, extra, label }: { value: string; extra?: string; la
 }
 
 export function YearPosterView({ rows, units, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   const { start, end } = periodBounds('year', now);
   const totals = totalsForRange(rows, start, end);
   if (totals.count === 0) return <CenterMessage body={t('noActivities')} />;
@@ -260,12 +264,12 @@ export function YearPosterView({ rows, units, locale, now, width, height }: View
       <div style={{ margin: '0.4em 0 0.3em' }}>
         <div style={{ fontSize: '4em', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
           {formatNumber(distValue, locale)}{' '}
-          <span style={{ fontSize: '0.43em', fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>
+          <span style={{ fontSize: '0.43em', fontWeight: 700, color: hue.fg(0.55) }}>
             {units === 'imperial' ? 'mi' : 'km'}
           </span>
         </div>
         {marathons !== null && (
-          <div style={{ fontSize: '0.85em', color: 'rgba(255,255,255,0.55)', marginTop: '0.5em' }}>
+          <div style={{ fontSize: '0.85em', color: hue.fg(0.55), marginTop: '0.5em' }}>
             {t('marathonEquiv', { count: marathons })}
           </div>
         )}
@@ -276,8 +280,8 @@ export function YearPosterView({ rows, units, locale, now, width, height }: View
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: '1px',
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
+          border: `1px solid ${hue.fg(0.08)}`,
           borderRadius: '0.85em',
           overflow: 'hidden',
           marginTop: '1.4em',
@@ -324,6 +328,7 @@ function recordEntry(
 }
 
 export function RecordsView({ rows, units, locale, width, height, athleteStats }: ViewProps) {
+  const hue = useTheme();
   const rec = activityRecords(rows);
   const entries: RecordEntry[] = [];
   // Lifetime bests Strava tracks server-side — deeper history than our
@@ -444,7 +449,7 @@ export function RecordsView({ rows, units, locale, width, height, athleteStats }
             alignItems: 'center',
             gap: '1em',
             padding: '0.85em 0',
-            borderBottom: i < shown.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            borderBottom: i < shown.length - 1 ? `1px solid ${hue.fg(0.08)}` : 'none',
           }}
         >
           <div
@@ -469,7 +474,7 @@ export function RecordsView({ rows, units, locale, width, height, athleteStats }
                 fontWeight: 500,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.55)',
+                color: hue.fg(0.55),
               }}
             >
               {entry.label}
@@ -477,7 +482,7 @@ export function RecordsView({ rows, units, locale, width, height, athleteStats }
             <div
               style={{
                 fontSize: '0.9em',
-                color: 'rgba(255,255,255,0.78)',
+                color: hue.fg(0.78),
                 marginTop: '0.15em',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -489,7 +494,7 @@ export function RecordsView({ rows, units, locale, width, height, athleteStats }
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: '1.3em', fontWeight: 700 }}>{entry.value}</div>
-            <div style={{ fontSize: '0.75em', color: 'rgba(255,255,255,0.35)', marginTop: '0.1em' }}>
+            <div style={{ fontSize: '0.75em', color: hue.fg(0.35), marginTop: '0.1em' }}>
               {entry.date}
             </div>
           </div>
@@ -502,6 +507,7 @@ export function RecordsView({ rows, units, locale, width, height, athleteStats }
 // ─── Eddington number ────────────────────────────────────────────────────────
 
 export function EddingtonView({ rows, units, locale, width, height }: ViewProps) {
+  const hue = useTheme();
   if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
   const e = eddington(rows, units);
   const unit = units === 'imperial' ? 'mi' : 'km';
@@ -522,7 +528,7 @@ export function EddingtonView({ rows, units, locale, width, height }: ViewProps)
         <div style={{ fontSize: '5em', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
           {formatNumber(e.number, locale)}
         </div>
-        <div style={{ fontSize: '0.9em', color: 'rgba(255,255,255,0.55)', marginTop: '0.6em' }}>
+        <div style={{ fontSize: '0.9em', color: hue.fg(0.55), marginTop: '0.6em' }}>
           {t('eddingtonMeaning', { count: e.number, unit })}
         </div>
       </div>
@@ -535,10 +541,10 @@ export function EddingtonView({ rows, units, locale, width, height }: ViewProps)
             marginBottom: '0.5em',
           }}
         >
-          <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.78)' }}>
+          <span style={{ fontWeight: 600, color: hue.fg(0.78) }}>
             {t('eddingtonNext', { next })}
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+          <span style={{ color: hue.fg(0.55) }}>
             {t('eddingtonNeeded', { count: e.neededForNext, next, unit })}
           </span>
         </div>
@@ -546,7 +552,7 @@ export function EddingtonView({ rows, units, locale, width, height }: ViewProps)
           style={{
             height: '0.85em',
             borderRadius: '999px',
-            background: 'rgba(255,255,255,0.08)',
+            background: hue.fg(0.08),
             overflow: 'hidden',
           }}
         >
@@ -565,7 +571,7 @@ export function EddingtonView({ rows, units, locale, width, height }: ViewProps)
           display: 'flex',
           gap: '1.7em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
         }}
       >
         <Stat
@@ -589,6 +595,7 @@ function BarChart({
   labels: string[];
   highlight: number;
 }) {
+  const hue = useTheme();
   const max = Math.max(...values);
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -601,7 +608,7 @@ function BarChart({
               height: max > 0 ? `${Math.max((v / max) * 100, 2)}%` : '2%',
               minHeight: '3px',
               borderRadius: '4px 4px 2px 2px',
-              background: i === highlight && v > 0 ? STRAVA_ORANGE : 'rgba(255,255,255,0.22)',
+              background: i === highlight && v > 0 ? STRAVA_ORANGE : hue.fg(0.22),
             }}
           />
         ))}
@@ -614,7 +621,7 @@ function BarChart({
               flex: 1,
               fontSize: '0.7em',
               textAlign: 'center',
-              color: i === highlight ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.35)',
+              color: i === highlight ? hue.fg(0.78) : hue.fg(0.35),
               fontWeight: i === highlight ? 700 : 400,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -649,6 +656,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 const HOUR_BUCKET = 3; // 24h → 8 bars
 
 export function TrainingTimesView({ rows, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
   const byWeekday = weekdayDistribution(rows);
   const byHour = hourDistribution(rows);
@@ -719,7 +727,7 @@ export function TrainingTimesView({ rows, locale, now, width, height }: ViewProp
           display: 'flex',
           gap: '1.7em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
           flexShrink: 0,
         }}
       >
@@ -732,8 +740,10 @@ export function TrainingTimesView({ rows, locale, now, width, height }: ViewProp
 
 // ─── Month calendar ──────────────────────────────────────────────────────────
 
-const CAL_TIER_BG = [
-  'rgba(255,255,255,0.04)',
+/** Calendar-cell tiers: an empty day in the host's text color, then the
+ *  brand orange deepening with volume. See `tierColors` in views.tsx. */
+const calTierBg = (hue: Theme) => [
+  hue.fg(0.04),
   'rgba(252,76,2,0.22)',
   'rgba(252,76,2,0.4)',
   'rgba(252,76,2,0.58)',
@@ -741,6 +751,8 @@ const CAL_TIER_BG = [
 ];
 
 export function MonthCalendarView({ rows, config, units, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
+  const tiers = calTierBg(hue);
   const grid = monthCalendarGrid(now);
   const buckets = bucketByDay(rows);
   let max = 0;
@@ -793,7 +805,7 @@ export function MonthCalendarView({ rows, config, units, locale, now, width, hei
               fontSize: '0.7em',
               fontWeight: 600,
               letterSpacing: '0.06em',
-              color: 'rgba(255,255,255,0.35)',
+              color: hue.fg(0.35),
               textAlign: 'center',
             }}
           >
@@ -820,7 +832,7 @@ export function MonthCalendarView({ rows, config, units, locale, now, width, hei
               key={cell.key}
               style={{
                 borderRadius: '0.5em',
-                background: cell.isFuture ? 'transparent' : CAL_TIER_BG[tier],
+                background: cell.isFuture ? 'transparent' : tiers[tier],
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -828,10 +840,10 @@ export function MonthCalendarView({ rows, config, units, locale, now, width, hei
                 fontWeight: cell.isFuture ? 500 : 600,
                 color:
                   tier >= 2
-                    ? '#fff'
+                    ? hue.fg(1)
                     : cell.isFuture
-                      ? 'rgba(255,255,255,0.25)'
-                      : 'rgba(255,255,255,0.55)',
+                      ? hue.fg(0.25)
+                      : hue.fg(0.55),
                 boxShadow: cell.isToday ? `0 0 0 2px ${STRAVA_ORANGE}` : undefined,
               }}
             >
@@ -846,7 +858,7 @@ export function MonthCalendarView({ rows, config, units, locale, now, width, hei
           gap: '1.7em',
           marginTop: '1.15em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
           flexShrink: 0,
         }}
       >

@@ -15,6 +15,7 @@ import { MountainIcon, SportIcon } from './icons';
 import { t } from './i18n';
 import { typeScale } from './size';
 import { CenterMessage, STRAVA_ORANGE, type ViewProps } from './views';
+import { useTheme } from './theme';
 
 // ─── Gear ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ function GearRow({
   units: Units;
   locale: string;
 }) {
+  const hue = useTheme();
   const fraction = max > 0 ? item.distance / max : 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35em' }}>
@@ -69,7 +71,7 @@ function GearRow({
         style={{
           height: '0.5em',
           borderRadius: '999px',
-          background: 'rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
           overflow: 'hidden',
         }}
       >
@@ -180,6 +182,7 @@ function SegmentRow({
   locale: string;
   isLast: boolean;
 }) {
+  const hue = useTheme();
   const badge = climbBadge(segment.climbCategory);
   return (
     <div
@@ -188,7 +191,7 @@ function SegmentRow({
         alignItems: 'center',
         gap: '1em',
         padding: '0.7em 0',
-        borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.08)',
+        borderBottom: isLast ? 'none' : `1px solid ${hue.fg(0.08)}`,
       }}
     >
       <div
@@ -224,8 +227,8 @@ function SegmentRow({
                 marginLeft: '0.8em',
                 padding: '0.15em 0.7em',
                 borderRadius: '1em',
-                background: 'rgba(255,255,255,0.08)',
-                color: 'rgba(255,255,255,0.78)',
+                background: hue.fg(0.08),
+                color: hue.fg(0.78),
                 verticalAlign: 'middle',
               }}
             >
@@ -246,7 +249,7 @@ function SegmentRow({
         {segment.prTime ? (
           <>
             <div style={{ fontSize: '1.2em', fontWeight: 700 }}>{formatClock(segment.prTime)}</div>
-            <div style={{ fontSize: '0.75em', color: 'rgba(255,255,255,0.35)', marginTop: '0.1em' }}>
+            <div style={{ fontSize: '0.75em', color: hue.fg(0.35), marginTop: '0.1em' }}>
               {segment.prDate ? shortDate(segment.prDate, locale) : t('personalRecord')}
             </div>
           </>
@@ -273,6 +276,7 @@ function MilestoneRow({
   units: Units;
   locale: string;
 }) {
+  const hue = useTheme();
   if (!totals || totals.count === 0) return null;
   const unit = units === 'imperial' ? 'mi' : 'km';
   const value = units === 'imperial' ? totals.distance / METERS_PER_MILE : totals.distance / 1000;
@@ -292,7 +296,7 @@ function MilestoneRow({
         style={{
           height: '0.6em',
           borderRadius: '999px',
-          background: 'rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
           overflow: 'hidden',
         }}
       >

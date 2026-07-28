@@ -14,6 +14,7 @@ import { SportIcon } from './icons';
 import { t } from './i18n';
 import { typeScale } from './size';
 import { CenterMessage, Stat, STRAVA_ORANGE, type ViewProps } from './views';
+import { useTheme } from './theme';
 
 const ART_W = 100;
 const MAX_ROUTES = 9;
@@ -21,6 +22,7 @@ const MAX_ROUTES = 9;
 /** A single route drawn at its own aspect ratio with a white start dot, so
  *  the art fills its box instead of floating in a fixed landscape canvas. */
 export function RouteArt({ polyline, strokeWidth = 2 }: { polyline: string; strokeWidth?: number }) {
+  const hue = useTheme();
   const { projected, artH } = React.useMemo(() => {
     const pts = decodePolyline(polyline);
     const h = Math.round(ART_W / Math.max(0.5, Math.min(routeAspect(pts), 2.2)));
@@ -45,7 +47,7 @@ export function RouteArt({ polyline, strokeWidth = 2 }: { polyline: string; stro
         strokeLinejoin="round"
         opacity={0.9}
       />
-      <circle cx={projected[0].x} cy={projected[0].y} r={2.5} fill="#fff" />
+      <circle cx={projected[0].x} cy={projected[0].y} r={2.5} fill={hue.fg(1)} />
     </svg>
   );
 }
@@ -58,6 +60,7 @@ const MIN_CARD_H_PX = 130; // padding + min art height + footer
 const HEADER_ALLOWANCE_PX = 48;
 
 export function RouteGalleryView({ rows, units, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   const cols = Math.max(1, Math.floor((width + GAP_PX) / (MIN_COL_PX + GAP_PX)));
   const fitRows = Math.max(
     1,
@@ -84,8 +87,8 @@ export function RouteGalleryView({ rows, units, locale, now, width, height }: Vi
         <div
           key={a.id}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: hue.fg(0.05),
+            border: `1px solid ${hue.fg(0.08)}`,
             borderRadius: '0.85em',
             padding: '0.85em',
             display: 'flex',
@@ -190,6 +193,7 @@ export function RouteMapView({ rows, units, locale, width, height }: ViewProps) 
 // ─── Planned routes (saved on Strava, not yet ridden today) ──────────────────
 
 export function PlannedRoutesView({ routes, units, locale, width, height }: ViewProps) {
+  const hue = useTheme();
   if (!routes) return <CenterMessage body={t('loading')} />;
   const drawable = routes.filter((r) => r.polyline);
   if (drawable.length === 0) return <CenterMessage body={t('noPlannedRoutes')} />;
@@ -217,8 +221,8 @@ export function PlannedRoutesView({ routes, units, locale, width, height }: View
         <div
           key={route.id}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: hue.fg(0.05),
+            border: `1px solid ${hue.fg(0.08)}`,
             borderRadius: '0.85em',
             padding: '0.85em',
             display: 'flex',

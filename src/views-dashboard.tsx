@@ -32,8 +32,10 @@ import {
   STRAVA_ORANGE,
   type ViewProps,
 } from './views';
+import { useTheme } from './theme';
 
 function Chip({ children, orange }: { children: React.ReactNode; orange?: boolean }) {
+  const hue = useTheme();
   return (
     <span
       style={{
@@ -41,9 +43,9 @@ function Chip({ children, orange }: { children: React.ReactNode; orange?: boolea
         fontWeight: 600,
         padding: '0.25em 0.85em',
         borderRadius: '999px',
-        background: orange ? 'rgba(252,76,2,0.16)' : 'rgba(255,255,255,0.05)',
-        border: orange ? '1px solid transparent' : '1px solid rgba(255,255,255,0.08)',
-        color: orange ? '#ff8a5c' : 'rgba(255,255,255,0.78)',
+        background: orange ? 'rgba(252,76,2,0.16)' : hue.fg(0.05),
+        border: orange ? '1px solid transparent' : `1px solid ${hue.fg(0.08)}`,
+        color: orange ? '#ff8a5c' : hue.fg(0.78),
         whiteSpace: 'nowrap',
       }}
     >
@@ -53,6 +55,7 @@ function Chip({ children, orange }: { children: React.ReactNode; orange?: boolea
 }
 
 export function DashboardView(props: ViewProps) {
+  const hue = useTheme();
   const { rows, config, units, locale, now, width, height } = props;
   const latest = rows[0];
   if (!latest) return <CenterMessage body={t('noActivities')} />;
@@ -120,7 +123,7 @@ export function DashboardView(props: ViewProps) {
           <div
             style={{
               fontSize: '0.9em',
-              color: 'rgba(255,255,255,0.55)',
+              color: hue.fg(0.55),
               margin: '0.3em 0 1.1em 3.35em',
             }}
           >
@@ -164,8 +167,8 @@ export function DashboardView(props: ViewProps) {
               width: '14.3em',
               alignSelf: 'stretch',
               flexShrink: 0,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: hue.fg(0.05),
+              border: `1px solid ${hue.fg(0.08)}`,
               borderRadius: '0.85em',
               display: 'flex',
               alignItems: 'center',
@@ -181,7 +184,7 @@ export function DashboardView(props: ViewProps) {
       <div
         style={{
           height: '1px',
-          background: 'rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
           margin: short ? '0.9em 0' : '1.4em 0',
         }}
       />
@@ -203,7 +206,7 @@ export function DashboardView(props: ViewProps) {
               fontWeight: 500,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.55)',
+              color: hue.fg(0.55),
             }}
           >
             {t('thisWeek')}
@@ -241,17 +244,17 @@ export function DashboardView(props: ViewProps) {
                     borderRadius: d.value > 0 ? '4px 4px 2px 2px' : '2px',
                     background:
                       d.value <= 0
-                        ? 'rgba(255,255,255,0.12)'
+                        ? hue.fg(0.12)
                         : d.isToday
                           ? STRAVA_ORANGE
-                          : 'rgba(255,255,255,0.22)',
+                          : hue.fg(0.22),
                   }}
                 />
                 <span
                   style={{
                     fontSize: '0.75em',
                     fontWeight: 600,
-                    color: d.isToday ? '#fff' : 'rgba(255,255,255,0.35)',
+                    color: d.isToday ? hue.fg(1) : hue.fg(0.35),
                   }}
                 >
                   {d.letter}
@@ -274,7 +277,7 @@ export function DashboardView(props: ViewProps) {
             style={{
               width: '15em',
               flexShrink: 0,
-              borderLeft: '1px solid rgba(255,255,255,0.08)',
+              borderLeft: `1px solid ${hue.fg(0.08)}`,
               paddingLeft: '1.4em',
               display: 'flex',
               flexDirection: 'column',
@@ -292,12 +295,13 @@ export function DashboardView(props: ViewProps) {
 }
 
 function GoalPane({ rows, config, units, locale, now }: ViewProps) {
+  const hue = useTheme();
   const goal = config.goals[0];
   const p = goalProgress(rows, goal, units, now);
   return (
     <>
       <GoalRing fraction={p.fraction} label={`${Math.round(p.fraction * 100)}%`} size="8.3em" />
-      <div style={{ fontSize: '0.85em', color: 'rgba(255,255,255,0.55)', textAlign: 'center' }}>
+      <div style={{ fontSize: '0.85em', color: hue.fg(0.55), textAlign: 'center' }}>
         {goalValue(goal.metric, p.current, units, locale)} /{' '}
         {goalValue(goal.metric, p.target, units, locale)} · {periodLabel(goal.period)}
       </div>
@@ -307,6 +311,7 @@ function GoalPane({ rows, config, units, locale, now }: ViewProps) {
 }
 
 function DeltaPane({ rows, units, locale, now }: ViewProps) {
+  const hue = useTheme();
   const { start } = periodBounds('week', now);
   const thisWeek = totalsForRange(rows, start, addDays(start, 7));
   const lastWeek = totalsForRange(rows, addDays(start, -7), start);
@@ -327,7 +332,7 @@ function DeltaPane({ rows, units, locale, now }: ViewProps) {
           fontWeight: 500,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          color: 'rgba(255,255,255,0.55)',
+          color: hue.fg(0.55),
         }}
       >
         {t('vsLastWeek')}
@@ -338,7 +343,7 @@ function DeltaPane({ rows, units, locale, now }: ViewProps) {
             key={label}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
           >
-            <span style={{ fontSize: '0.85em', color: 'rgba(255,255,255,0.55)' }}>{label}</span>
+            <span style={{ fontSize: '0.85em', color: hue.fg(0.55) }}>{label}</span>
             <span style={{ fontSize: '1.15em', fontWeight: 700 }}>{value}</span>
           </div>
         ))}

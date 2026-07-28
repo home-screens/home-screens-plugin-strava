@@ -31,6 +31,7 @@ import { decodePolyline, polylineToPath, routeAspect } from './polyline';
 import { SportIcon } from './icons';
 import { sportLabel, t } from './i18n';
 import { typeScale, type SizeTier } from './size';
+import { useTheme, type Theme } from './theme';
 
 export const STRAVA_ORANGE = '#FC4C02';
 
@@ -111,6 +112,7 @@ function TileRow({
   tiles: { value: string; label: string }[];
   valueEm: number;
 }) {
+  const hue = useTheme();
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div
@@ -133,8 +135,8 @@ function TileRow({
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '1px',
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
+          border: `1px solid ${hue.fg(0.08)}`,
           borderRadius: '0.85em',
           overflow: 'hidden',
         }}
@@ -144,7 +146,7 @@ function TileRow({
             key={i}
             style={{
               minWidth: 0,
-              background: 'rgba(255,255,255,0.045)',
+              background: hue.fg(0.045),
               padding: '0.75em 0.9em',
               display: 'flex',
               flexDirection: 'column',
@@ -436,8 +438,11 @@ export function GoalProgressView({ rows, config, units, locale, now, width, heig
 
 // ─── Heatmap ─────────────────────────────────────────────────────────────────
 
-const TIER_COLORS = [
-  'rgba(255,255,255,0.08)',
+/** Heatmap tiers: an empty cell in the host's text color, then the brand
+ *  orange deepening with volume. A function of the theme rather than a
+ *  constant, because the empty tier follows the Text color. */
+const tierColors = (hue: Theme) => [
+  hue.fg(0.08),
   'rgba(252,76,2,0.3)',
   'rgba(252,76,2,0.5)',
   'rgba(252,76,2,0.75)',
@@ -445,6 +450,8 @@ const TIER_COLORS = [
 ];
 
 export function HeatmapView({ rows, config, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
+  const tiers = tierColors(hue);
   const buckets = bucketByDay(rows);
   const todayKey = dayKey(now);
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -597,7 +604,7 @@ export function HeatmapView({ rows, config, locale, now, width, height }: ViewPr
                 width={cell}
                 height={cell}
                 rx={rx}
-                fill={TIER_COLORS[tierFor(v, max)]}
+                fill={tiers[tierFor(v, max)]}
               />
             );
           }),
@@ -619,7 +626,7 @@ export function HeatmapView({ rows, config, locale, now, width, height }: ViewPr
               opacity: 0.8,
               padding: '0.3em 1em',
               borderRadius: '1em',
-              backgroundColor: 'rgba(0,0,0,0.45)',
+              backgroundColor: hue.shade(0.45),
             }}
           >
             {t('noActivities')}
@@ -778,6 +785,7 @@ export function LatestHeroView({
 // ─── Athlete card ────────────────────────────────────────────────────────────
 
 function ProfilePhoto({ athlete }: { athlete: AthleteProfile }) {
+  const hue = useTheme();
   const [failed, setFailed] = React.useState(false);
   const url = athlete.profile;
   // Strava serves a generic placeholder path for athletes with no photo
@@ -790,7 +798,7 @@ function ProfilePhoto({ athlete }: { athlete: AthleteProfile }) {
           height: '4em',
           borderRadius: '50%',
           backgroundColor: STRAVA_ORANGE,
-          color: '#fff',
+          color: hue.fg(1),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -834,11 +842,12 @@ function LifetimeCell({
   units: Units;
   locale: string;
 }) {
+  const hue = useTheme();
   return (
     <div
       style={{
         minWidth: 0,
-        background: 'rgba(255,255,255,0.045)',
+        background: hue.fg(0.045),
         padding: '1em 1.15em',
         display: 'flex',
         flexDirection: 'column',
@@ -879,6 +888,7 @@ function LifetimeCell({
 }
 
 export function AthleteCardView({ athlete, athleteStats, units, locale, width, height }: ViewProps) {
+  const hue = useTheme();
   if (!athlete) return <CenterMessage body={t('loading')} />;
   const location = [athlete.city, athlete.state, athlete.country].filter(Boolean).join(', ');
   const subtitle = [
@@ -935,8 +945,8 @@ export function AthleteCardView({ athlete, athleteStats, units, locale, width, h
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '1px',
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: hue.fg(0.08),
+          border: `1px solid ${hue.fg(0.08)}`,
           borderRadius: '0.85em',
           overflow: 'hidden',
         }}

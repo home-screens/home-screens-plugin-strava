@@ -10,6 +10,8 @@
 
 import React from 'react';
 import type { ModuleStyle, PluginComponentProps } from './hs-plugin';
+import { hostFrameStyle } from './host-style';
+import { ThemeProvider } from './theme';
 import type {
   ActivityDetail,
   ActivityRow,
@@ -77,6 +79,9 @@ export { StateProvider } from './state-provider';
 
 const REFRESH_MS = 600_000;
 const AUTH_RECHECK_MS = 60_000;
+/** Mirrors manifest.json `defaultStyle.fontSize` — the size every hard-coded
+ *  px dimension in these views was drawn against. Keep the two in step. */
+const DEFAULT_FONT_SIZE = 14;
 /** Detail requests per photo-wall refresh; keeps the rate-limit cost bounded. */
 const PHOTO_WALL_MAX = 12;
 
@@ -171,24 +176,17 @@ function RootFrame({
     <div
       ref={rootRef}
       style={{
-        width: '100%',
-        height: '100%',
-        overflow: 'hidden',
+        // Every px dimension in these views was authored against the
+        // manifest's defaultStyle.fontSize, so that is what `--u` measures
+        // the host's Text size against.
+        ...hostFrameStyle(style, { baseFontSize: DEFAULT_FONT_SIZE }),
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: style.fontFamily,
-        fontSize: style.fontSize,
-        color: style.textColor,
-        backgroundColor: style.backgroundColor,
-        borderRadius: style.borderRadius,
-        padding: style.padding,
-        opacity: style.opacity,
-        backdropFilter: `blur(${style.backdropBlur ?? 0}px)`,
-        WebkitBackdropFilter: `blur(${style.backdropBlur ?? 0}px)`,
-        boxSizing: 'border-box',
       }}
     >
-      {children}
+      {/* Every neutral below comes from useTheme(); this is the only place
+          the host's Text color enters the view tree. See theme.tsx. */}
+      <ThemeProvider textColor={style.textColor}>{children}</ThemeProvider>
     </div>
   );
 }

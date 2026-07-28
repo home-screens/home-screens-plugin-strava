@@ -8,6 +8,7 @@ import { formatDistance, formatNumber, formatSignedNumber, METERS_PER_MILE } fro
 import { t } from './i18n';
 import { typeScale } from './size';
 import { CenterMessage, Stat, STRAVA_ORANGE, type ViewProps } from './views';
+import { useTheme, type Theme } from './theme';
 
 const VB_W = 100;
 const VB_H = 40;
@@ -22,6 +23,7 @@ function linePoints(series: number[], domain: number, max: number): string {
 }
 
 function TrendSvg({ children }: { children: React.ReactNode }) {
+  const hue = useTheme();
   return (
     <svg
       viewBox={`0 0 ${VB_W} ${VB_H}`}
@@ -33,7 +35,7 @@ function TrendSvg({ children }: { children: React.ReactNode }) {
         y1={VB_H - 1}
         x2={VB_W}
         y2={VB_H - 1}
-        stroke="rgba(255,255,255,0.15)"
+        stroke={hue.fg(0.15)}
         strokeWidth={1}
         vectorEffect="non-scaling-stroke"
       />
@@ -61,9 +63,11 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 
 // ─── Year vs last year ───────────────────────────────────────────────────────
 
-const LAST_YEAR_COLOR = 'rgba(255,255,255,0.35)';
+/** Last year's line, quieter than this year's brand orange. */
+const lastYearColor = (hue: Theme) => hue.fg(0.35);
 
 export function YearCompareView({ rows, units, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
   const year = now.getFullYear();
   const cur = cumulativeYear(rows, year, now);
@@ -91,7 +95,7 @@ export function YearCompareView({ rows, units, locale, now, width, height }: Vie
     >
       <div style={{ display: 'flex', gap: '1.4em', flexShrink: 0, marginBottom: '0.85em' }}>
         <LegendDot color={STRAVA_ORANGE} label={String(year)} />
-        <LegendDot color={LAST_YEAR_COLOR} label={String(year - 1)} />
+        <LegendDot color={lastYearColor(hue)} label={String(year - 1)} />
       </div>
       <div style={{ flex: 1, minHeight: '4em' }}>
         <TrendSvg>
@@ -99,7 +103,7 @@ export function YearCompareView({ rows, units, locale, now, width, height }: Vie
             <polyline
               points={linePoints(prev, domain, max)}
               fill="none"
-              stroke={LAST_YEAR_COLOR}
+              stroke={lastYearColor(hue)}
               strokeWidth={1.6}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
@@ -123,7 +127,7 @@ export function YearCompareView({ rows, units, locale, now, width, height }: Vie
           gap: '1.7em',
           marginTop: '1em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
           flexShrink: 0,
         }}
       >
@@ -141,9 +145,11 @@ export function YearCompareView({ rows, units, locale, now, width, height }: Vie
 // ─── Fitness trend ───────────────────────────────────────────────────────────
 
 const FITNESS_DAYS = 90;
-const FATIGUE_COLOR = 'rgba(255,255,255,0.4)';
+/** The fatigue line, quieter than the fitness line it sits under. */
+const fatigueColor = (hue: Theme) => hue.fg(0.4);
 
 export function FitnessView({ rows, locale, now, width, height }: ViewProps) {
+  const hue = useTheme();
   if (rows.length === 0) return <CenterMessage body={t('noActivities')} />;
   const series = fitnessSeries(rows, now, FITNESS_DAYS);
   const max = Math.max(...series.map((p) => Math.max(p.fitness, p.fatigue)));
@@ -164,7 +170,7 @@ export function FitnessView({ rows, locale, now, width, height }: ViewProps) {
     >
       <div style={{ display: 'flex', gap: '1.4em', flexShrink: 0, marginBottom: '0.85em' }}>
         <LegendDot color={STRAVA_ORANGE} label={t('fitnessLabel')} />
-        <LegendDot color={FATIGUE_COLOR} label={t('fatigueLabel')} />
+        <LegendDot color={fatigueColor(hue)} label={t('fatigueLabel')} />
         <span style={{ marginLeft: 'auto', fontSize: '0.75em', opacity: 0.4 }}>
           {t('lastNDays', { count: FITNESS_DAYS })}
         </span>
@@ -174,7 +180,7 @@ export function FitnessView({ rows, locale, now, width, height }: ViewProps) {
           <polyline
             points={linePoints(series.map((p) => p.fatigue), series.length, max)}
             fill="none"
-            stroke={FATIGUE_COLOR}
+            stroke={fatigueColor(hue)}
             strokeWidth={1.4}
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
@@ -195,7 +201,7 @@ export function FitnessView({ rows, locale, now, width, height }: ViewProps) {
           gap: '1.7em',
           marginTop: '1em',
           paddingTop: '1em',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: `1px solid ${hue.fg(0.08)}`,
           flexShrink: 0,
         }}
       >
