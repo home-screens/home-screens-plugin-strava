@@ -5,4 +5,4 @@ dist/
 audit-dist/
 scripts/.shots/
 scripts/.shots-marketing/
-.claude/
+.claude/releases/

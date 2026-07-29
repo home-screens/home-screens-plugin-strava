@@ -1,7 +1,7 @@
 {
   "id": "strava",
   "name": "Strava",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Show your Strava life on the wall: recent activities, weekly and yearly stat tiles, goal rings, a 52-week training heatmap, a map of everywhere you go, gear mileage, segment PRs, your Eddington number, and more. Strava Subscription Required: Strava only lets subscribers create the free API app this plugin connects through, so you need an active Strava subscription to set it up.",
   "author": "home-screens",
   "license": "MIT",
