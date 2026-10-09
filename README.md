@@ -2,6 +2,8 @@
 
 Show your Strava activities on your [Home Screens](https://homescreens.dev) display: recent activities, weekly and yearly stat tiles, goal progress rings, a 52-week training heatmap, a map of everywhere you go, gear mileage, segment PRs, your Eddington number, and more.
 
+![Latest activity: stats, kudos, the route map and its photo](screenshots/latest-hero.webp)
+
 Read-only, one athlete, refreshed every 10 minutes.
 
 ## Before you start
@@ -58,6 +60,14 @@ Your Strava sign-in happens on strava.com — this plugin never sees your passwo
 | **Milestones** | Lifetime distance per sport with progress to the next round number |
 | **Latest activity** | Your newest activity, big: stats, calories, kudos, PRs, the route map, and its photo |
 | **Athlete card** | Your profile photo, name, followers, and all-time plus this-year ride/run/swim totals |
+
+## Screenshots
+
+| Route map | Recent activities |
+|---|---|
+| ![Every route from the last year on one canvas](screenshots/route-map.webp) | ![Recent activities with distance and pace](screenshots/recent-activities.webp) |
+| ![Twelve weeks of distance with the four-week average](screenshots/training-volume.webp) | ![The year as a poster: distance, time, climbing, active days](screenshots/year-poster.webp) |
+| ![Progress rings toward weekly and yearly goals](screenshots/goal-progress.webp) | |
 
 ## Options
 
